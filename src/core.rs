@@ -144,6 +144,7 @@ impl Core {
     }
 
     /// Trieds to init the metrics.
+    #[cfg_attr(not(feature = "metrics"), allow(clippy::let_unit_value))]
     pub fn try_init<F: FnOnce(&mut Registry, &mut ErasedSyncSet)>(f: F) -> std::io::Result<()> {
         let mut registry = Registry::default();
         let mut metrics_map = ErasedSyncSet::new();
