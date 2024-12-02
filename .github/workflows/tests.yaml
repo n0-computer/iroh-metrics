@@ -106,16 +106,13 @@ jobs:
 
     - name: build tests
       run: |
-        test_list=$(cargo nextest list)
-        if [[ -n "$test_list" ]]; then
-          cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --no-run
-        fi
+        cargo nextest run --workspace ${{ env.FEATURES }} --lib --bins --tests --no-run
 
     - name: list ignored tests
-      env: 
-        NEXTEST_NO_TESTS: "pass"
       run: |
         cargo nextest list --workspace ${{ env.FEATURES }} --lib --bins --tests --run-ignored ignored-only
+      env: 
+        NEXTEST_NO_TESTS: "pass"
 
     - name: run tests
       run: |
@@ -216,6 +213,8 @@ jobs:
     - name: list ignored tests
       run: |
         cargo nextest list --workspace ${{ env.FEATURES }} --lib --bins --tests --target ${{ matrix.target }} --run-ignored ignored-only
+      env:
+        NEXTEST_NO_TESTS: "pass"
 
     - name: tests
       run: |
@@ -224,6 +223,7 @@ jobs:
       env:
         RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
+        NEXTEST_NO_TESTS: "pass"
   
     - name: upload results
       if: ${{ failure() && inputs.flaky }}
