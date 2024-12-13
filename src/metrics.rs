@@ -54,7 +54,7 @@ use std::net::SocketAddr;
 
 /// Start a server to serve the OpenMetrics endpoint.
 #[cfg(feature = "metrics")]
-pub async fn start_metrics_server(addr: SocketAddr) -> anyhow::Result<()> {
+pub async fn start_metrics_server(addr: SocketAddr) -> std::io::Result<()> {
     crate::service::run(addr).await
 }
 
@@ -63,7 +63,7 @@ pub async fn start_metrics_server(addr: SocketAddr) -> anyhow::Result<()> {
 pub async fn start_metrics_dumper(
     path: std::path::PathBuf,
     interval: std::time::Duration,
-) -> anyhow::Result<()> {
+) -> Result<(), crate::Error> {
     crate::service::dumper(&path, interval).await
 }
 

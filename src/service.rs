@@ -4,21 +4,19 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Context, Result};
 use hyper::{service::service_fn, Request, Response};
 use tokio::{io::AsyncWriteExt as _, net::TcpListener};
 use tracing::{debug, error, info, warn};
 
-use crate::{core::Core, parse_prometheus_metrics};
+use crate::{core::Core, parse_prometheus_metrics, Error};
 
 type BytesBody = http_body_util::Full<hyper::body::Bytes>;
 
 /// Start a HTTP server to report metrics.
-pub async fn run(metrics_addr: SocketAddr) -> Result<()> {
+pub async fn run(metrics_addr: SocketAddr) -> std::io::Result<()> {
     info!("Starting metrics server on {metrics_addr}");
-    let listener = TcpListener::bind(metrics_addr)
-        .await
-        .with_context(|| format!("failed to bind metrics on {metrics_addr}"))?;
+    let listener = TcpListener::bind(metrics_addr).await?;
+
     loop {
         let (stream, _addr) = listener.accept().await?;
         let io = hyper_util::rt::TokioIo::new(stream);
@@ -34,14 +32,15 @@ pub async fn run(metrics_addr: SocketAddr) -> Result<()> {
 }
 
 /// HTTP handler that will respond with the OpenMetrics encoding of our metrics.
-async fn handler(_req: Request<hyper::body::Incoming>) -> Result<Response<BytesBody>> {
-    let core = Core::get().ok_or_else(|| anyhow!("metrics disabled"))?;
-    core.encode().map_err(anyhow::Error::new).map(|r| {
-        Response::builder()
-            .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
-            .body(body_full(r))
-            .expect("Failed to build response")
-    })
+async fn handler(_req: Request<hyper::body::Incoming>) -> Result<Response<BytesBody>, Error> {
+    let core = Core::get().ok_or(Error::NoMetrics)?;
+    let content = core.encode();
+    let response = Response::builder()
+        .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(body_full(content))
+        .expect("Failed to build response");
+
+    Ok(response)
 }
 
 /// Creates a new [`BytesBody`] with given content.
@@ -50,9 +49,9 @@ fn body_full(content: impl Into<hyper::body::Bytes>) -> BytesBody {
 }
 
 /// Start a metrics dumper loop to write metrics to an output file.
-pub async fn dumper(path: &PathBuf, interval_ms: Duration) -> Result<()> {
+pub async fn dumper(path: &PathBuf, interval_ms: Duration) -> Result<(), Error> {
     info!(file = %path.display(), ?interval_ms, "running metrics dumper");
-    let _ = Core::get().ok_or_else(|| anyhow!("metrics disabled"))?;
+    let _ = Core::get().ok_or(Error::NoMetrics)?;
 
     let start = Instant::now();
 
@@ -78,42 +77,37 @@ async fn dump_metrics(
     file: &mut tokio::io::BufWriter<tokio::fs::File>,
     start: &Instant,
     write_header: bool,
-) -> Result<()> {
-    let core = Core::get().ok_or_else(|| anyhow!("metrics disabled"))?;
+) -> Result<(), Error> {
+    let core = Core::get().ok_or(Error::NoMetrics)?;
     let m = core.encode();
-    match m {
-        Err(e) => error!("Failed to encode metrics: {e:#}"),
-        Ok(m) => {
-            let m = parse_prometheus_metrics(&m)?;
-            let time_since_start = start.elapsed().as_millis() as f64;
+    let m = parse_prometheus_metrics(&m);
+    let time_since_start = start.elapsed().as_millis() as f64;
 
-            // take the keys from m and sort them
-            let mut keys: Vec<&String> = m.keys().collect();
-            keys.sort();
+    // take the keys from m and sort them
+    let mut keys: Vec<&String> = m.keys().collect();
+    keys.sort();
 
-            let mut metrics = String::new();
-            if write_header {
-                metrics.push_str("time");
-                for key in keys.iter() {
-                    metrics.push(',');
-                    metrics.push_str(key);
-                }
-                metrics.push('\n');
-            }
-
-            metrics.push_str(&format!("{}", time_since_start));
-            for key in keys.iter() {
-                let value = m[*key];
-                let formatted_value = format!("{:.3}", value);
-                metrics.push(',');
-                metrics.push_str(&formatted_value);
-            }
-            metrics.push('\n');
-
-            file.write_all(metrics.as_bytes()).await?;
-            file.flush().await?;
+    let mut metrics = String::new();
+    if write_header {
+        metrics.push_str("time");
+        for key in keys.iter() {
+            metrics.push(',');
+            metrics.push_str(key);
         }
+        metrics.push('\n');
     }
+
+    metrics.push_str(&format!("{}", time_since_start));
+    for key in keys.iter() {
+        let value = m[*key];
+        let formatted_value = format!("{:.3}", value);
+        metrics.push(',');
+        metrics.push_str(&formatted_value);
+    }
+    metrics.push('\n');
+
+    file.write_all(metrics.as_bytes()).await?;
+    file.flush().await?;
     Ok(())
 }
 
@@ -138,30 +132,25 @@ pub async fn exporter(
     loop {
         tokio::time::sleep(interval).await;
         let buff = core.encode();
-        match buff {
-            Err(e) => error!("Failed to encode metrics: {e:#}"),
-            Ok(buff) => {
-                let mut req = push_client.post(&prom_gateway_uri);
-                if let Some(username) = username.clone() {
-                    req = req.basic_auth(username, Some(password.clone()));
-                }
-                let res = match req.body(buff).send().await {
-                    Ok(res) => res,
-                    Err(e) => {
-                        warn!("failed to push metrics: {}", e);
-                        continue;
-                    }
-                };
-                match res.status() {
-                    reqwest::StatusCode::OK => {
-                        debug!("pushed metrics to gateway");
-                    }
-                    _ => {
-                        warn!("failed to push metrics to gateway: {:?}", res);
-                        let body = res.text().await.unwrap();
-                        warn!("error body: {}", body);
-                    }
-                }
+        let mut req = push_client.post(&prom_gateway_uri);
+        if let Some(username) = username.clone() {
+            req = req.basic_auth(username, Some(password.clone()));
+        }
+        let res = match req.body(buff).send().await {
+            Ok(res) => res,
+            Err(e) => {
+                warn!("failed to push metrics: {}", e);
+                continue;
+            }
+        };
+        match res.status() {
+            reqwest::StatusCode::OK => {
+                debug!("pushed metrics to gateway");
+            }
+            _ => {
+                warn!("failed to push metrics to gateway: {:?}", res);
+                let body = res.text().await.unwrap();
+                warn!("error body: {}", body);
             }
         }
     }
