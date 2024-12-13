@@ -37,7 +37,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 serde = { version = "1", features = ["derive"] }
 struct_iterable = "0.1"
 thiserror = "2.0.6"
-time = { version = "0.3.21", features = ["serde-well-known"] }
 tokio = { version = "1", features = ["rt", "net", "fs"]}
 tracing = "0.1"
 
