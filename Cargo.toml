@@ -27,7 +27,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
 unused-async = "warn"
 
 [dependencies]
-anyhow = { version = "1" }
 erased_set = "0.8"
 http-body-util = "0.1.0"
 hyper = { version = "1", features = ["server", "http1"] }
@@ -37,7 +36,7 @@ prometheus-client = { version = "0.22", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 struct_iterable = "0.1"
-time = { version = "0.3.21", features = ["serde-well-known"] }
+thiserror = "2.0.6"
 tokio = { version = "1", features = ["rt", "net", "fs"]}
 tracing = "0.1"
 

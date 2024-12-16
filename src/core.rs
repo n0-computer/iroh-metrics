@@ -177,10 +177,10 @@ impl Core {
     /// Encodes the current metrics registry to a string in
     /// the prometheus text exposition format.
     #[cfg(feature = "metrics")]
-    pub fn encode(&self) -> Result<String, std::fmt::Error> {
+    pub fn encode(&self) -> String {
         let mut buf = String::new();
-        encode(&mut buf, &self.registry)?;
-        Ok(buf)
+        encode(&mut buf, &self.registry).expect("writing to string always works");
+        buf
     }
 }
 

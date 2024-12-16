@@ -15,6 +15,17 @@ use std::collections::HashMap;
 /// Reexport to make matching versions easier.
 pub use struct_iterable;
 
+/// Potential errors from this library.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// Indicates that the metrics have not been enabled.
+    #[error("Metrics not enabled")]
+    NoMetrics,
+    /// Any IO related error.
+    #[error("IO: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 /// Increment the given counter by 1.
 #[macro_export]
 macro_rules! inc {
@@ -40,7 +51,7 @@ macro_rules! set {
 }
 
 /// Parse Prometheus metrics from a string.
-pub fn parse_prometheus_metrics(data: &str) -> anyhow::Result<HashMap<String, f64>> {
+pub fn parse_prometheus_metrics(data: &str) -> HashMap<String, f64> {
     let mut metrics = HashMap::new();
     for line in data.lines() {
         if line.starts_with('#') {
@@ -57,7 +68,7 @@ pub fn parse_prometheus_metrics(data: &str) -> anyhow::Result<HashMap<String, f6
         }
         metrics.insert(metric.to_string(), value.unwrap());
     }
-    Ok(metrics)
+    metrics
 }
 
 /// Configuration for pushing metrics to a remote endpoint.
