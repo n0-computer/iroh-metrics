@@ -2,6 +2,18 @@
 
 All notable changes to iroh will be documented in this file.
 
+## [0.30.0](https://github.com/n0-computer/iroh-metrics/compare/v0.29.0..0.30.0) - 2024-12-16
+
+### ⛰️  Features
+
+- CI ([#1](https://github.com/n0-computer/iroh-metrics/issues/1)) - ([a90ca3e](https://github.com/n0-computer/iroh-metrics/commit/a90ca3e9a2f4aa4103c1a23759e3a50c6ef2753b))
+- [**breaking**] Introduce explicit error handling ([#3](https://github.com/n0-computer/iroh-metrics/issues/3)) - ([27e643e](https://github.com/n0-computer/iroh-metrics/commit/27e643e632881b2d30151758a0ef9ba1f894fecc))
+
+### ⚙️ Miscellaneous Tasks
+
+- Fixup changelog - ([dbba13e](https://github.com/n0-computer/iroh-metrics/commit/dbba13efa9f5419b37603182c3f85cdb9d26cac6))
+- Fixup clippy and semver ([#2](https://github.com/n0-computer/iroh-metrics/issues/2)) - ([06fee28](https://github.com/n0-computer/iroh-metrics/commit/06fee28a8ea68d230f8309d9d532e4fe5fd8e936))
+
 ## [0.29.0](https://github.com/n0-computer/iroh-metrics/compare/v0.28.1..v0.29.0) - 2024-12-02
 
 ### 📚 Documentation
