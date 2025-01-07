@@ -1,7 +1,8 @@
+use std::sync::OnceLock;
+
 use erased_set::ErasedSyncSet;
 #[cfg(feature = "metrics")]
 use prometheus_client::{encoding::text::encode, registry::Registry};
-use std::sync::OnceLock;
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
 
