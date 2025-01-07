@@ -444,7 +444,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "once_cell",
  "prometheus-client",
  "reqwest",
  "serde",
