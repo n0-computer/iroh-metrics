@@ -1,11 +1,12 @@
+use std::sync::OnceLock;
+
 use erased_set::ErasedSyncSet;
-use once_cell::sync::OnceCell;
 #[cfg(feature = "metrics")]
 use prometheus_client::{encoding::text::encode, registry::Registry};
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
 
-static CORE: OnceCell<Core> = OnceCell::new();
+static CORE: OnceLock<Core> = OnceLock::new();
 
 /// Core is the base metrics struct.
 ///
