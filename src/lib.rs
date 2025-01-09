@@ -26,7 +26,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-/// Increment the given counter by 1.
+/// Increment the given counter or gauge by 1.
 #[macro_export]
 macro_rules! inc {
     ($m:ty, $f:ident) => {
@@ -34,7 +34,7 @@ macro_rules! inc {
     };
 }
 
-/// Increment the given counter by `n`.
+/// Increment the given counter or gauge by `n`.
 #[macro_export]
 macro_rules! inc_by {
     ($m:ty, $f:ident, $n:expr) => {
@@ -42,7 +42,7 @@ macro_rules! inc_by {
     };
 }
 
-/// Set the given counter to `n`.
+/// Set the given counter or gauge to `n`.
 #[macro_export]
 macro_rules! set {
     ($m:ty, $f:ident, $n:expr) => {
@@ -50,25 +50,9 @@ macro_rules! set {
     };
 }
 
-/// Increment the given gauge by 1.
-#[macro_export]
-macro_rules! inc_gauge {
-    ($m:ty, $f:ident) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc());
-    };
-}
-
-/// Increment the given gauge by `n`.
-#[macro_export]
-macro_rules! inc_gauge_by {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc_by($n));
-    };
-}
-
 /// Decrement the given gauge by 1.
 #[macro_export]
-macro_rules! dec_gauge {
+macro_rules! dec {
     ($m:ty, $f:ident) => {
         <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec());
     };
@@ -76,17 +60,9 @@ macro_rules! dec_gauge {
 
 /// Decrement the given gauge `n`.
 #[macro_export]
-macro_rules! dec_gauge_by {
+macro_rules! dec_by {
     ($m:ty, $f:ident, $n:expr) => {
         <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec_by($n));
-    };
-}
-
-/// Set the given gauge to `n`.
-#[macro_export]
-macro_rules! set_gauge {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.set($n));
     };
 }
 

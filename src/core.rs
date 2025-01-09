@@ -93,7 +93,7 @@ impl Counter {
 /// Open Metrics [`Gauge`].
 #[derive(Debug, Clone)]
 pub struct Gauge {
-    /// The actual prometheus counter.
+    /// The actual prometheus gauge.
     #[cfg(feature = "metrics")]
     pub gauge: prometheus_client::metrics::gauge::Gauge,
     /// What this gauge tracks.
