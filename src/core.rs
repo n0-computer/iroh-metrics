@@ -90,6 +90,93 @@ impl Counter {
     }
 }
 
+/// Open Metrics [`Gauge`].
+#[derive(Debug, Clone)]
+pub struct Gauge {
+    /// The actual prometheus gauge.
+    #[cfg(feature = "metrics")]
+    pub gauge: prometheus_client::metrics::gauge::Gauge,
+    /// What this gauge tracks.
+    pub description: &'static str,
+}
+impl Gauge {
+    /// Constructs a new gauge, based on the given `description`.
+    pub fn new(description: &'static str) -> Self {
+        Self {
+            #[cfg(feature = "metrics")]
+            gauge: Default::default(),
+            description,
+        }
+    }
+
+    /// Increase the [`Gauge`] by 1, returning the previous value.
+    pub fn inc(&self) -> i64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.inc()
+        }
+        #[cfg(not(feature = "metrics"))]
+        0
+    }
+    /// Increase the [`Gauge`] by `i64`, returning the previous value.
+    #[cfg(feature = "metrics")]
+    pub fn inc_by(&self, v: i64) -> i64 {
+        self.gauge.inc_by(v)
+    }
+    /// Increase the [`Gauge`] by `i64`, returning the previous value.
+    #[cfg(not(feature = "metrics"))]
+    pub fn inc_by(&self, _v: u64) -> u64 {
+        0
+    }
+
+    /// Decrease the [`Gauge`] by 1, returning the previous value.
+    pub fn dec(&self) -> i64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.dec()
+        }
+        #[cfg(not(feature = "metrics"))]
+        0
+    }
+    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
+    #[cfg(feature = "metrics")]
+    pub fn dec_by(&self, v: i64) -> i64 {
+        self.gauge.dec_by(v)
+    }
+    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
+    #[cfg(not(feature = "metrics"))]
+    pub fn dec_by(&self, _v: u64) -> u64 {
+        0
+    }
+
+    /// Set the [`Gauge`] value.
+    #[cfg(feature = "metrics")]
+    pub fn set(&self, v: i64) -> i64 {
+        self.gauge
+            .inner()
+            .store(v, std::sync::atomic::Ordering::Relaxed);
+        v
+    }
+    /// Set the [`Gauge`] value.
+    #[cfg(not(feature = "metrics"))]
+    pub fn set(&self, _v: i64) -> i64 {
+        0
+    }
+
+    /// Get the [`Gauge`] value.
+    #[cfg(feature = "metrics")]
+    pub fn get(&self) -> i64 {
+        self.gauge
+            .inner()
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    /// Get the [`Gauge`] value.
+    #[cfg(not(feature = "metrics"))]
+    pub fn get(&self) -> i64 {
+        0
+    }
+}
+
 /// Description of a group of metrics.
 pub trait Metric:
     Default + struct_iterable::Iterable + Sized + std::fmt::Debug + 'static + Send + Sync
