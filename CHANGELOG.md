@@ -2,7 +2,19 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.30.0](https://github.com/n0-computer/iroh-metrics/compare/v0.29.0..0.30.0) - 2024-12-16
+## [0.31.0](https://github.com/n0-computer/iroh-metrics/compare/v0.30.0..0.31.0) - 2025-01-14
+
+### ⛰️  Features
+
+- [**breaking**] Bump MSRV to 1.81 ([#5](https://github.com/n0-computer/iroh-metrics/issues/5)) - ([a5c251b](https://github.com/n0-computer/iroh-metrics/commit/a5c251b49926804be48888d4db5ddce64ae2defd))
+- Reduce dependencies, especially with `--no-default-features` ([#7](https://github.com/n0-computer/iroh-metrics/issues/7)) - ([c39b0a6](https://github.com/n0-computer/iroh-metrics/commit/c39b0a638bc805ac696280023fef36d61d6ffc32))
+- Gauge support ([#8](https://github.com/n0-computer/iroh-metrics/issues/8)) - ([2cd2e98](https://github.com/n0-computer/iroh-metrics/commit/2cd2e982bb8a1cbee0431902868783f6630ab62c))
+
+### ⚙️ Miscellaneous Tasks
+
+- Add project tracking ([#6](https://github.com/n0-computer/iroh-metrics/issues/6)) - ([5195ad6](https://github.com/n0-computer/iroh-metrics/commit/5195ad63e6aff87664ea135704832bf4d02b0d8a))
+
+## [0.30.0](https://github.com/n0-computer/iroh-metrics/compare/v0.29.0..v0.30.0) - 2024-12-16
 
 ### ⛰️  Features
 
@@ -13,6 +25,7 @@ All notable changes to iroh will be documented in this file.
 
 - Fixup changelog - ([dbba13e](https://github.com/n0-computer/iroh-metrics/commit/dbba13efa9f5419b37603182c3f85cdb9d26cac6))
 - Fixup clippy and semver ([#2](https://github.com/n0-computer/iroh-metrics/issues/2)) - ([06fee28](https://github.com/n0-computer/iroh-metrics/commit/06fee28a8ea68d230f8309d9d532e4fe5fd8e936))
+- Release iroh-metrics version 0.30.0 - ([0366a75](https://github.com/n0-computer/iroh-metrics/commit/0366a757842edd31dab30191f2fec86410ef1efe))
 
 ## [0.29.0](https://github.com/n0-computer/iroh-metrics/compare/v0.28.1..v0.29.0) - 2024-12-02
 
