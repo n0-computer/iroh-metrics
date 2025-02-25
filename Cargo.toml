@@ -34,10 +34,12 @@ thiserror = "2.0.6"
 tracing = "0.1"
 
 # metrics feature
+prometheus-client = { version = "0.22", optional = true }
+
+# service feature
 http-body-util = { version = "0.1.0", optional = true }
 hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1.1", features = ["tokio"], optional = true }
-prometheus-client = { version = "0.22", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 
@@ -46,11 +48,19 @@ tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macr
 
 [features]
 default = ["metrics"]
+# Enables counters and other metrics being tracked.
+# If disabled, all counters return 0. Macros like `inc!` will do nothing.
 metrics = [
+    "dep:prometheus-client",
+]
+# Enables functionality to run a local metrics server that current metrics
+# are served at in prometheus format.
+# Pulls in quite a few libraries to make exposing an HTTP server possible.
+service = [
+    "metrics",
     "dep:http-body-util",
     "dep:hyper",
     "dep:hyper-util",
-    "dep:prometheus-client",
     "dep:reqwest",
     "dep:tokio",
 ]

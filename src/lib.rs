@@ -1,18 +1,20 @@
 //! Metrics library for iroh
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
+#![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
+#[cfg(feature = "service")]
 pub mod metrics;
 
-/// Expose core types and traits
+/// Exposes core types and traits
 pub mod core;
 
-/// Expose iroh metrics
-#[cfg(feature = "metrics")]
+/// Exposes iroh metrics
+#[cfg(feature = "service")]
 mod service;
 
 use std::collections::HashMap;
 
-/// Reexport to make matching versions easier.
+/// Reexports `struct_iterable` to make matching versions easier.
 pub use struct_iterable;
 
 /// Potential errors from this library.
@@ -26,7 +28,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-/// Increment the given counter or gauge by 1.
+/// Increments the given counter or gauge by 1.
 #[macro_export]
 macro_rules! inc {
     ($m:ty, $f:ident) => {
@@ -34,7 +36,7 @@ macro_rules! inc {
     };
 }
 
-/// Increment the given counter or gauge by `n`.
+/// Increments the given counter or gauge by `n`.
 #[macro_export]
 macro_rules! inc_by {
     ($m:ty, $f:ident, $n:expr) => {
@@ -42,7 +44,7 @@ macro_rules! inc_by {
     };
 }
 
-/// Set the given counter or gauge to `n`.
+/// Sets the given counter or gauge to `n`.
 #[macro_export]
 macro_rules! set {
     ($m:ty, $f:ident, $n:expr) => {
@@ -50,7 +52,7 @@ macro_rules! set {
     };
 }
 
-/// Decrement the given gauge by 1.
+/// Decrements the given gauge by 1.
 #[macro_export]
 macro_rules! dec {
     ($m:ty, $f:ident) => {
@@ -58,7 +60,7 @@ macro_rules! dec {
     };
 }
 
-/// Decrement the given gauge `n`.
+/// Decrements the given gauge `n`.
 #[macro_export]
 macro_rules! dec_by {
     ($m:ty, $f:ident, $n:expr) => {
@@ -66,7 +68,7 @@ macro_rules! dec_by {
     };
 }
 
-/// Parse Prometheus metrics from a string.
+/// Parses Prometheus metrics from a string.
 pub fn parse_prometheus_metrics(data: &str) -> HashMap<String, f64> {
     let mut metrics = HashMap::new();
     for line in data.lines() {
