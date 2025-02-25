@@ -48,18 +48,14 @@
 //! inc!(Metrics, things_added);
 //! ```
 
-// TODO: move cfg to lib.rs
-#[cfg(feature = "metrics")]
 use std::net::SocketAddr;
 
 /// Start a server to serve the OpenMetrics endpoint.
-#[cfg(feature = "metrics")]
 pub async fn start_metrics_server(addr: SocketAddr) -> std::io::Result<()> {
     crate::service::run(addr).await
 }
 
 /// Start a metrics dumper service.
-#[cfg(feature = "metrics")]
 pub async fn start_metrics_dumper(
     path: std::path::PathBuf,
     interval: std::time::Duration,
@@ -68,7 +64,6 @@ pub async fn start_metrics_dumper(
 }
 
 /// Start a metrics exporter service.
-#[cfg(feature = "metrics")]
 pub async fn start_metrics_exporter(cfg: crate::PushMetricsConfig) {
     crate::service::exporter(
         cfg.endpoint,
