@@ -122,14 +122,14 @@
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-#[cfg(all(feature = <span class="string">"service"</span>))]
+#[cfg(feature = <span class="string">"service"</span>)]
 </span><span class="kw">pub mod </span>metrics;
 
 <span class="doccomment">/// Exposes core types and traits
 </span><span class="kw">pub mod </span>core;
 
 <span class="doccomment">/// Exposes iroh metrics
-</span><span class="attr">#[cfg(all(feature = <span class="string">"service"</span>))]
+</span><span class="attr">#[cfg(feature = <span class="string">"service"</span>)]
 </span><span class="kw">mod </span>service;
 
 <span class="kw">use </span>std::collections::HashMap;
