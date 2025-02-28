@@ -221,6 +221,22 @@ pub trait Metric:
     fn try_get() -> Option<&'static Self> {
         Core::get().and_then(|c| c.get_collector::<Self>())
     }
+
+    /// Returns the metrics descriptions.
+    fn describe() -> Vec<MetricItem> {
+        let mut res = vec![];
+        let this = Self::default();
+        for (metric, counter) in this.iter() {
+            if let Some(counter) = counter.downcast_ref::<Counter>() {
+                res.push(MetricItem {
+                    name: metric.to_string(),
+                    description: counter.description.to_string(),
+                    r#type: "counter".to_string(),
+                });
+            }
+        }
+        res
+    }
 }
 
 impl Core {
@@ -278,8 +294,95 @@ pub trait MetricType {
     fn name(&self) -> &'static str;
 }
 
+/// Returns the metric item representation.
+#[derive(Debug, Clone)]
+pub struct MetricItem {
+    /// The name of the metric.
+    pub name: String,
+    /// The description of the metric.
+    pub description: String,
+    /// The type of the metric.
+    pub r#type: String,
+}
+
 /// Interface for all distribution based metrics.
 pub trait HistogramType {
     /// Returns the name of the metric
     fn name(&self) -> &'static str;
+}
+
+#[cfg(test)]
+mod tests {
+    use struct_iterable::Iterable;
+
+    use super::*;
+
+    #[derive(Debug, Clone, Iterable)]
+    pub struct Metrics {
+        pub test_metric_a: Counter,
+        pub test_metric_b: Counter,
+    }
+
+    impl Default for Metrics {
+        fn default() -> Self {
+            Self {
+                test_metric_a: Counter::new("test_metric_a"),
+                test_metric_b: Counter::new("test_metric_b"),
+            }
+        }
+    }
+
+    impl Metric for Metrics {
+        fn name() -> &'static str {
+            "test_metrics"
+        }
+    }
+
+    #[test]
+    fn test_metric_description() -> Result<(), Box<dyn std::error::Error>> {
+        let items = Metrics::describe();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "test_metric_a");
+        assert_eq!(items[0].description, "test_metric_a");
+        assert_eq!(items[0].r#type, "counter");
+        assert_eq!(items[1].name, "test_metric_b");
+        assert_eq!(items[1].description, "test_metric_b");
+        assert_eq!(items[1].r#type, "counter");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_solo_registry() -> Result<(), Box<dyn std::error::Error>> {
+        let mut registry = Registry::default();
+        let metrics = Metrics::new(&mut registry);
+
+        metrics.test_metric_a.inc();
+        metrics.test_metric_b.inc_by(2);
+        metrics.test_metric_b.inc_by(3);
+        assert_eq!(metrics.test_metric_a.get(), 1);
+        assert_eq!(metrics.test_metric_b.get(), 5);
+        metrics.test_metric_a.set(0);
+        metrics.test_metric_b.set(0);
+        assert_eq!(metrics.test_metric_a.get(), 0);
+        assert_eq!(metrics.test_metric_b.get(), 0);
+        metrics.test_metric_a.inc_by(5);
+        metrics.test_metric_b.inc_by(2);
+        assert_eq!(metrics.test_metric_a.get(), 5);
+        assert_eq!(metrics.test_metric_b.get(), 2);
+
+        let exp = "# HELP test_metrics_test_metric_a test_metric_a.
+# TYPE test_metrics_test_metric_a counter
+test_metrics_test_metric_a_total 5
+# HELP test_metrics_test_metric_b test_metric_b.
+# TYPE test_metrics_test_metric_b counter
+test_metrics_test_metric_b_total 2
+# EOF
+";
+        let mut enc = String::new();
+        encode(&mut enc, &registry).expect("writing to string always works");
+
+        assert_eq!(enc, exp);
+        Ok(())
+    }
 }
