@@ -671,15 +671,15 @@
     }
 }
 
-<span class="doccomment">///
+<span class="doccomment">/// Trait for a set of structs implementing [`Metric`].
 </span><span class="kw">pub trait </span>MetricSet {
-    <span class="doccomment">///
+    <span class="doccomment">/// Returns an iterator of references to structs implmenting [`Metric`].
     </span><span class="kw">fn </span>iter&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw">dyn </span>Metric&gt;;
 
-    <span class="doccomment">///
+    <span class="doccomment">/// Returns the name of this metrics group set.
     </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
-    <span class="doccomment">///
+    <span class="doccomment">/// Register all metrics groups in this set onto a prometheus client registry.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>register_all(<span class="kw-2">&amp;</span><span class="self">self</span>, registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) {
         <span class="kw">let </span>sub_registry = registry.sub_registry_with_prefix(<span class="self">self</span>.name());
