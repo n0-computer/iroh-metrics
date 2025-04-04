@@ -35,13 +35,15 @@
 //! }
 //!
 //! impl Metric for Metrics {
-//!     fn name() -> &'static str {
+//!     fn name(&self) -> &'static str {
 //!         "my_metrics"
 //!     }
 //! }
 //!
 //! Core::init(|reg, metrics| {
-//!     metrics.insert(Metrics::new(reg));
+//!     let m = Metrics::default();
+//!     m.register(reg);
+//!     metrics.insert(m);
 //! });
 //!
 //! inc_by!(Metrics, things_added, 2);

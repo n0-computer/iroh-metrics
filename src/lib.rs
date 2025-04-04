@@ -32,7 +32,9 @@ pub enum Error {
 #[macro_export]
 macro_rules! inc {
     ($m:ty, $f:ident) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc());
+        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
+            m.$f.inc();
+        }
     };
 }
 
@@ -40,7 +42,9 @@ macro_rules! inc {
 #[macro_export]
 macro_rules! inc_by {
     ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc_by($n));
+        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
+            m.$f.inc_by($n);
+        }
     };
 }
 
@@ -56,7 +60,9 @@ macro_rules! set {
 #[macro_export]
 macro_rules! dec {
     ($m:ty, $f:ident) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec());
+        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
+            m.$f.dec();
+        }
     };
 }
 
@@ -64,7 +70,9 @@ macro_rules! dec {
 #[macro_export]
 macro_rules! dec_by {
     ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec_by($n));
+        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
+            m.$f.dec_by($n);
+        }
     };
 }
 

@@ -210,15 +210,15 @@ pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send +
     }
 }
 
-///
+/// Trait for a set of structs implementing [`Metric`].
 pub trait MetricSet {
-    ///
+    /// Returns an iterator of references to structs implmenting [`Metric`].
     fn iter<'a>(&'a self) -> impl IntoIterator<Item = &'a dyn Metric>;
 
-    ///
+    /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
 
-    ///
+    /// Register all metrics groups in this set onto a prometheus client registry.
     #[cfg(feature = "metrics")]
     fn register_all(&self, registry: &mut prometheus_client::registry::Registry) {
         let sub_registry = registry.sub_registry_with_prefix(self.name());
