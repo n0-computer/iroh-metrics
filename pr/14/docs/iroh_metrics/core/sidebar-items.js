@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Core","Counter","Gauge","MetricItem"],"trait":["HistogramType","Metric","MetricType"]};
+window.SIDEBAR_ITEMS = {"struct":["Core","Counter","Gauge","MetricItem"],"trait":["HistogramType","Metric","MetricSet","MetricType"]};
