@@ -1,161 +1,4 @@
-/// Open Metrics [`Counter`] to measure discrete events.
-///
-/// Single monotonically increasing value metric.
-#[derive(Debug, Clone)]
-pub struct Counter {
-    /// The actual prometheus counter.
-    #[cfg(feature = "metrics")]
-    pub counter: prometheus_client::metrics::counter::Counter,
-    /// What this counter measures.
-    pub description: &'static str,
-}
-
-impl Counter {
-    /// Constructs a new counter, based on the given `description`.
-    pub fn new(description: &'static str) -> Self {
-        Counter {
-            #[cfg(feature = "metrics")]
-            counter: Default::default(),
-            description,
-        }
-    }
-
-    /// Increase the [`Counter`] by 1, returning the previous value.
-    pub fn inc(&self) -> u64 {
-        #[cfg(feature = "metrics")]
-        {
-            self.counter.inc()
-        }
-        #[cfg(not(feature = "metrics"))]
-        0
-    }
-
-    /// Increase the [`Counter`] by `u64`, returning the previous value.
-    #[cfg(feature = "metrics")]
-    pub fn inc_by(&self, v: u64) -> u64 {
-        self.counter.inc_by(v)
-    }
-
-    /// Set the [`Counter`] value.
-    /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
-    #[cfg(feature = "metrics")]
-    pub fn set(&self, v: u64) -> u64 {
-        self.counter
-            .inner()
-            .store(v, std::sync::atomic::Ordering::Relaxed);
-        v
-    }
-
-    /// Set the [`Counter`] value.
-    /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
-    #[cfg(not(feature = "metrics"))]
-    pub fn set(&self, _v: u64) -> u64 {
-        0
-    }
-
-    /// Increase the [`Counter`] by `u64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn inc_by(&self, _v: u64) -> u64 {
-        0
-    }
-
-    /// Get the current value of the [`Counter`].
-    pub fn get(&self) -> u64 {
-        #[cfg(feature = "metrics")]
-        {
-            self.counter.get()
-        }
-        #[cfg(not(feature = "metrics"))]
-        0
-    }
-}
-
-/// Open Metrics [`Gauge`].
-#[derive(Debug, Clone)]
-pub struct Gauge {
-    /// The actual prometheus gauge.
-    #[cfg(feature = "metrics")]
-    pub gauge: prometheus_client::metrics::gauge::Gauge,
-    /// What this gauge tracks.
-    pub description: &'static str,
-}
-impl Gauge {
-    /// Constructs a new gauge, based on the given `description`.
-    pub fn new(description: &'static str) -> Self {
-        Self {
-            #[cfg(feature = "metrics")]
-            gauge: Default::default(),
-            description,
-        }
-    }
-
-    /// Increase the [`Gauge`] by 1, returning the previous value.
-    pub fn inc(&self) -> i64 {
-        #[cfg(feature = "metrics")]
-        {
-            self.gauge.inc()
-        }
-        #[cfg(not(feature = "metrics"))]
-        0
-    }
-    /// Increase the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(feature = "metrics")]
-    pub fn inc_by(&self, v: i64) -> i64 {
-        self.gauge.inc_by(v)
-    }
-    /// Increase the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn inc_by(&self, _v: u64) -> u64 {
-        0
-    }
-
-    /// Decrease the [`Gauge`] by 1, returning the previous value.
-    pub fn dec(&self) -> i64 {
-        #[cfg(feature = "metrics")]
-        {
-            self.gauge.dec()
-        }
-        #[cfg(not(feature = "metrics"))]
-        0
-    }
-    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(feature = "metrics")]
-    pub fn dec_by(&self, v: i64) -> i64 {
-        self.gauge.dec_by(v)
-    }
-    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn dec_by(&self, _v: u64) -> u64 {
-        0
-    }
-
-    /// Set the [`Gauge`] value.
-    #[cfg(feature = "metrics")]
-    pub fn set(&self, v: i64) -> i64 {
-        self.gauge
-            .inner()
-            .store(v, std::sync::atomic::Ordering::Relaxed);
-        v
-    }
-    /// Set the [`Gauge`] value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn set(&self, _v: i64) -> i64 {
-        0
-    }
-
-    /// Get the [`Gauge`] value.
-    #[cfg(feature = "metrics")]
-    pub fn get(&self) -> i64 {
-        self.gauge
-            .inner()
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-    /// Get the [`Gauge`] value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn get(&self) -> i64 {
-        0
-    }
-}
+pub use crate::metrics::{Counter, Gauge};
 
 /// Description of a group of metrics.
 pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send + Sync {
@@ -164,9 +7,12 @@ pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send +
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
         let sub_registry = registry.sub_registry_with_prefix(self.name());
 
-        for (metric, counter) in self.iter() {
-            if let Some(counter) = counter.downcast_ref::<Counter>() {
+        for (metric, item) in self.iter() {
+            if let Some(counter) = item.downcast_ref::<Counter>() {
                 sub_registry.register(metric, counter.description, counter.counter.clone());
+            }
+            if let Some(gauge) = item.downcast_ref::<Gauge>() {
+                sub_registry.register(metric, gauge.description, gauge.gauge.clone());
             }
         }
     }
@@ -178,11 +24,18 @@ pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send +
     fn describe(&self) -> Vec<MetricItem> {
         let mut res = vec![];
         for (metric, counter) in self.iter() {
-            if let Some(counter) = counter.downcast_ref::<Counter>() {
+            if let Some(item) = counter.downcast_ref::<Counter>() {
                 res.push(MetricItem {
                     name: metric.to_string(),
-                    description: counter.description.to_string(),
+                    description: item.description.to_string(),
                     r#type: "counter".to_string(),
+                });
+            }
+            if let Some(item) = counter.downcast_ref::<Gauge>() {
+                res.push(MetricItem {
+                    name: metric.to_string(),
+                    description: item.description.to_string(),
+                    r#type: "gauge".to_string(),
                 });
             }
         }
@@ -215,10 +68,9 @@ pub trait MetricSet {
 
     /// Register all metrics groups in this set onto a prometheus client registry.
     #[cfg(feature = "metrics")]
-    fn register_all(&self, registry: &mut prometheus_client::registry::Registry) {
-        let sub_registry = registry.sub_registry_with_prefix(self.name());
+    fn register(&self, registry: &mut prometheus_client::registry::Registry) {
         for metric in self.iter() {
-            metric.register(sub_registry)
+            metric.register(registry)
         }
     }
 }
@@ -393,7 +245,8 @@ foo_metric_b_total 2
 
         // automatic collection and encoding with prometheus_client
         let mut registry = Registry::default();
-        metrics.register_all(&mut registry);
+        let mut sub = registry.sub_registry_with_prefix("combined");
+        metrics.register(&mut sub);
         let exp = "# HELP combined_foo_metric_a metric_a.
 # TYPE combined_foo_metric_a counter
 combined_foo_metric_a_total 1

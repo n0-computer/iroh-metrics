@@ -1,3 +1,5 @@
+//! Functions to start services that deal with metrics exposed by this crate.
+
 use std::{
     net::SocketAddr,
     sync::{Arc, RwLock},
