@@ -1,23 +1,3 @@
-use std::sync::OnceLock;
-
-use erased_set::ErasedSyncSet;
-#[cfg(feature = "metrics")]
-use prometheus_client::{encoding::text::encode, registry::Registry};
-#[cfg(not(feature = "metrics"))]
-type Registry = ();
-
-static CORE: OnceLock<Core> = OnceLock::new();
-
-/// Core is the base metrics struct.
-///
-/// It manages the mapping between the metrics name and the actual metrics.
-/// It also carries a single prometheus registry to be used by all metrics.
-#[derive(Debug, Default)]
-pub struct Core {
-    #[cfg(feature = "metrics")]
-    registry: Registry,
-    metrics_map: ErasedSyncSet,
-}
 /// Open Metrics [`Counter`] to measure discrete events.
 ///
 /// Single monotonically increasing value metric.
@@ -243,55 +223,6 @@ pub trait MetricSet {
     }
 }
 
-impl Core {
-    /// Must only be called once to init metrics.
-    ///
-    /// Panics if called a second time.
-    pub fn init<F: FnOnce(&mut Registry, &mut ErasedSyncSet)>(f: F) {
-        Self::try_init(f).expect("must only be called once");
-    }
-
-    /// Trieds to init the metrics.
-    #[cfg_attr(not(feature = "metrics"), allow(clippy::let_unit_value))]
-    pub fn try_init<F: FnOnce(&mut Registry, &mut ErasedSyncSet)>(f: F) -> std::io::Result<()> {
-        let mut registry = Registry::default();
-        let mut metrics_map = ErasedSyncSet::new();
-        f(&mut registry, &mut metrics_map);
-
-        CORE.set(Core {
-            metrics_map,
-            #[cfg(feature = "metrics")]
-            registry,
-        })
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "already set"))
-    }
-
-    /// Returns a reference to the core metrics.
-    pub fn get() -> Option<&'static Self> {
-        CORE.get()
-    }
-
-    /// Returns a reference to the prometheus registry.
-    #[cfg(feature = "metrics")]
-    pub fn registry(&self) -> &Registry {
-        &self.registry
-    }
-
-    /// Returns a reference to the mapped metrics instance.
-    pub fn get_collector<T: Metric>(&self) -> Option<&T> {
-        self.metrics_map.get::<T>()
-    }
-
-    /// Encodes the current metrics registry to a string in
-    /// the prometheus text exposition format.
-    #[cfg(feature = "metrics")]
-    pub fn encode(&self) -> String {
-        let mut buf = String::new();
-        encode(&mut buf, &self.registry).expect("writing to string always works");
-        buf
-    }
-}
-
 /// Interface for all single value based metrics.
 pub trait MetricType {
     /// Returns the name of the metric
@@ -396,6 +327,9 @@ mod tests {
     #[cfg(feature = "metrics")]
     #[test]
     fn test_solo_registry() -> Result<(), Box<dyn std::error::Error>> {
+        use prometheus_client::encoding::text::encode;
+        use prometheus_client::registry::Registry;
+
         let mut registry = Registry::default();
         let metrics = FooMetrics::default();
         metrics.register(&mut registry);
@@ -432,6 +366,9 @@ foo_metric_b_total 2
     #[cfg(feature = "metrics")]
     #[test]
     fn test_metric_sets() {
+        use prometheus_client::encoding::text::encode;
+        use prometheus_client::registry::Registry;
+
         let metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();
         metrics.bar.count.inc_by(10);

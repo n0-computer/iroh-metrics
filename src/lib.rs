@@ -6,13 +6,17 @@
 pub mod metrics;
 
 /// Exposes core types and traits
-pub mod core;
+mod base;
+pub use base::*;
+
+#[cfg(feature = "static_core")]
+pub mod static_core;
 
 /// Exposes iroh metrics
 #[cfg(feature = "service")]
-mod service;
+pub mod service;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 /// Reexports `struct_iterable` to make matching versions easier.
 pub use struct_iterable;
@@ -26,54 +30,6 @@ pub enum Error {
     /// Any IO related error.
     #[error("IO: {0}")]
     Io(#[from] std::io::Error),
-}
-
-/// Increments the given counter or gauge by 1.
-#[macro_export]
-macro_rules! inc {
-    ($m:ty, $f:ident) => {
-        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
-            m.$f.inc();
-        }
-    };
-}
-
-/// Increments the given counter or gauge by `n`.
-#[macro_export]
-macro_rules! inc_by {
-    ($m:ty, $f:ident, $n:expr) => {
-        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
-            m.$f.inc_by($n);
-        }
-    };
-}
-
-/// Sets the given counter or gauge to `n`.
-#[macro_export]
-macro_rules! set {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.set($n));
-    };
-}
-
-/// Decrements the given gauge by 1.
-#[macro_export]
-macro_rules! dec {
-    ($m:ty, $f:ident) => {
-        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
-            m.$f.dec();
-        }
-    };
-}
-
-/// Decrements the given gauge `n`.
-#[macro_export]
-macro_rules! dec_by {
-    ($m:ty, $f:ident, $n:expr) => {
-        if let Some(m) = $crate::core::Core::get().and_then(|c| c.get_collector::<$m>()) {
-            m.$f.dec_by($n);
-        }
-    };
 }
 
 /// Parses Prometheus metrics from a string.
@@ -100,8 +56,8 @@ pub fn parse_prometheus_metrics(data: &str) -> HashMap<String, f64> {
 /// Configuration for pushing metrics to a remote endpoint.
 #[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
 pub struct PushMetricsConfig {
-    /// The push interval in seconds.
-    pub interval: u64,
+    /// The push interval.
+    pub interval: Duration,
     /// The endpoint url for the push metrics collector.
     pub endpoint: String,
     /// The name of the service you're exporting metrics for.

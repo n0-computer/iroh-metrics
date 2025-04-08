@@ -49,31 +49,3 @@
 //! inc_by!(Metrics, things_added, 2);
 //! inc!(Metrics, things_added);
 //! ```
-
-use std::net::SocketAddr;
-
-/// Start a server to serve the OpenMetrics endpoint.
-pub async fn start_metrics_server(addr: SocketAddr) -> std::io::Result<()> {
-    crate::service::run(addr).await
-}
-
-/// Start a metrics dumper service.
-pub async fn start_metrics_dumper(
-    path: std::path::PathBuf,
-    interval: std::time::Duration,
-) -> Result<(), crate::Error> {
-    crate::service::dumper(&path, interval).await
-}
-
-/// Start a metrics exporter service.
-pub async fn start_metrics_exporter(cfg: crate::PushMetricsConfig) {
-    crate::service::exporter(
-        cfg.endpoint,
-        cfg.service_name,
-        cfg.instance_name,
-        cfg.username,
-        cfg.password,
-        std::time::Duration::from_secs(cfg.interval),
-    )
-    .await;
-}
