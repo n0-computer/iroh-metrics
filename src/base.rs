@@ -98,7 +98,22 @@ pub trait HistogramType {
     fn name(&self) -> &'static str;
 }
 
-#[cfg(test)]
+/// Ensure metrics can be used without `metrics` feature.
+/// All ops are noops then, get always returns 0.
+#[cfg(all(test, not(feature = "metrics")))]
+mod tests {
+    use super::Counter;
+
+    #[test]
+    fn test() {
+        let counter = Counter::new("foo");
+        counter.inc();
+        assert_eq!(counter.get(), 0);
+    }
+}
+
+/// Tests with the `metrics` feature,
+#[cfg(all(test, feature = "metrics"))]
 mod tests {
     use struct_iterable::Iterable;
 
@@ -160,7 +175,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn test_metric_description() -> Result<(), Box<dyn std::error::Error>> {
         let metrics = FooMetrics::default();
@@ -176,7 +190,6 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn test_solo_registry() -> Result<(), Box<dyn std::error::Error>> {
         use prometheus_client::encoding::text::encode;
@@ -215,7 +228,6 @@ foo_metric_b_total 2
         Ok(())
     }
 
-    #[cfg(feature = "metrics")]
     #[test]
     fn test_metric_sets() {
         use prometheus_client::encoding::text::encode;
