@@ -11,7 +11,8 @@
 //! # Example:
 //! ```rust
 //! use iroh_metrics::{
-//!     core::{Core, Counter, Metric},
+//!     static_core::Core,
+//!     Counter, Metric,
 //!     inc, inc_by,
 //! };
 //! use struct_iterable::Iterable;
