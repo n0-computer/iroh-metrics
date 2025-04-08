@@ -228,7 +228,8 @@
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
 
 </span><span class="kw">use </span>std::{
     net::SocketAddr,
@@ -254,7 +255,7 @@
 <span class="kw">impl </span>MetricsSource <span class="kw">for </span>Registry {
     <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>buf = String::new();
-        prometheus_client::encoding::text::encode(<span class="kw-2">&amp;mut </span>buf, <span class="kw-2">&amp;</span><span class="self">self</span>)
+        prometheus_client::encoding::text::encode(<span class="kw-2">&amp;mut </span>buf, <span class="self">self</span>)
             .expect(<span class="string">"writing to string always works"</span>);
         <span class="prelude-val">Ok</span>(buf)
     }
@@ -372,6 +373,7 @@
 }
 
 <span class="doccomment">/// HTTP handler that will respond with the OpenMetrics encoding of our metrics.
+</span><span class="attr">#[allow(clippy::unused_async)]
 </span><span class="kw">async fn </span>handler(
     _req: Request&lt;hyper::body::Incoming&gt;,
     registry: <span class="kw">impl </span>MetricsSource,
