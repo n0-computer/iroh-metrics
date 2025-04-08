@@ -24,7 +24,7 @@ pub trait MetricsSource: Send + 'static {
 impl MetricsSource for Registry {
     fn encode_openmetrics(&self) -> Result<String, Error> {
         let mut buf = String::new();
-        prometheus_client::encoding::text::encode(&mut buf, &self)
+        prometheus_client::encoding::text::encode(&mut buf, self)
             .expect("writing to string always works");
         Ok(buf)
     }
@@ -142,6 +142,7 @@ pub async fn start_metrics_exporter(cfg: MetricsExporterConfig, registry: impl M
 }
 
 /// HTTP handler that will respond with the OpenMetrics encoding of our metrics.
+#[allow(clippy::unused_async)]
 async fn handler(
     _req: Request<hyper::body::Incoming>,
     registry: impl MetricsSource,

@@ -60,8 +60,8 @@ impl<T> MetricExt for T where T: Metric + Default {}
 
 /// Trait for a set of structs implementing [`Metric`].
 pub trait MetricSet {
-    /// Returns an iterator of references to structs implmenting [`Metric`].
-    fn iter<'a>(&'a self) -> impl IntoIterator<Item = &'a dyn Metric>;
+    /// Returns an iterator of references to structs implementing [`Metric`].
+    fn iter(&self) -> impl IntoIterator<Item = &dyn Metric>;
 
     /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
@@ -170,7 +170,7 @@ mod tests {
             "combined"
         }
 
-        fn iter<'a>(&'a self) -> impl IntoIterator<Item = &'a dyn Metric> {
+        fn iter(&self) -> impl IntoIterator<Item = &dyn Metric> {
             [&self.foo as &dyn Metric, &self.bar as &dyn Metric]
         }
     }
@@ -192,8 +192,7 @@ mod tests {
 
     #[test]
     fn test_solo_registry() -> Result<(), Box<dyn std::error::Error>> {
-        use prometheus_client::encoding::text::encode;
-        use prometheus_client::registry::Registry;
+        use prometheus_client::{encoding::text::encode, registry::Registry};
 
         let mut registry = Registry::default();
         let metrics = FooMetrics::default();
@@ -230,8 +229,7 @@ foo_metric_b_total 2
 
     #[test]
     fn test_metric_sets() {
-        use prometheus_client::encoding::text::encode;
-        use prometheus_client::registry::Registry;
+        use prometheus_client::{encoding::text::encode, registry::Registry};
 
         let metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();
@@ -257,8 +255,8 @@ foo_metric_b_total 2
 
         // automatic collection and encoding with prometheus_client
         let mut registry = Registry::default();
-        let mut sub = registry.sub_registry_with_prefix("combined");
-        metrics.register(&mut sub);
+        let sub = registry.sub_registry_with_prefix("combined");
+        metrics.register(sub);
         let exp = "# HELP combined_foo_metric_a metric_a.
 # TYPE combined_foo_metric_a counter
 combined_foo_metric_a_total 1

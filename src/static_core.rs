@@ -10,11 +10,7 @@
 //!
 //! # Example:
 //! ```rust
-//! use iroh_metrics::{
-//!     static_core::Core,
-//!     Counter, Metric,
-//!     inc, inc_by,
-//! };
+//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, Metric};
 //! use struct_iterable::Iterable;
 //!
 //! #[derive(Debug, Clone, Iterable)]
