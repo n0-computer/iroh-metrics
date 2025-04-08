@@ -53,7 +53,7 @@ use erased_set::ErasedSyncSet;
 #[cfg(feature = "metrics")]
 use prometheus_client::{encoding::text::encode, registry::Registry};
 
-use crate::{base::Metric, Error};
+use crate::base::Metric;
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
@@ -66,8 +66,8 @@ pub struct GlobalRegistry;
 
 #[cfg(feature = "service")]
 impl crate::service::MetricsSource for GlobalRegistry {
-    fn encode_openmetrics(&self) -> Result<String, Error> {
-        let core = crate::static_core::Core::get().ok_or(Error::NoMetrics)?;
+    fn encode_openmetrics(&self) -> Result<String, crate::Error> {
+        let core = crate::static_core::Core::get().ok_or(crate::Error::NoMetrics)?;
         Ok(core.encode())
     }
 }

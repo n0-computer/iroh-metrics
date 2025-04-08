@@ -6,6 +6,13 @@
 mod base;
 pub use base::*;
 
+// TODO(frando): remove
+/// deprecated
+pub mod core {
+    pub use crate::base::*;
+    pub use crate::metrics::*;
+}
+
 mod metrics;
 pub use metrics::*;
 
