@@ -274,9 +274,7 @@
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="kw">pub use </span><span class="kw">crate</span>::metrics::{Counter, Gauge};
+<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">pub use </span><span class="kw">crate</span>::metrics::{Counter, Gauge};
 
 <span class="doccomment">/// Description of a group of metrics.
 </span><span class="kw">pub trait </span>Metric: struct_iterable::Iterable + std::fmt::Debug + <span class="lifetime">'static </span>+ Send + Sync {
@@ -338,7 +336,7 @@
 
 <span class="doccomment">/// Trait for a set of structs implementing [`Metric`].
 </span><span class="kw">pub trait </span>MetricSet {
-    <span class="doccomment">/// Returns an iterator of references to structs implmenting [`Metric`].
+    <span class="doccomment">/// Returns an iterator of references to structs implementing [`Metric`].
     </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>Metric&gt;;
 
     <span class="doccomment">/// Returns the name of this metrics group set.
@@ -470,8 +468,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_solo_registry() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
-        <span class="kw">use </span>prometheus_client::encoding::text::encode;
-        <span class="kw">use </span>prometheus_client::registry::Registry;
+        <span class="kw">use </span>prometheus_client::{encoding::text::encode, registry::Registry};
 
         <span class="kw">let </span><span class="kw-2">mut </span>registry = Registry::default();
         <span class="kw">let </span>metrics = FooMetrics::default();
@@ -508,8 +505,7 @@ foo_metric_b_total 2
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_metric_sets() {
-        <span class="kw">use </span>prometheus_client::encoding::text::encode;
-        <span class="kw">use </span>prometheus_client::registry::Registry;
+        <span class="kw">use </span>prometheus_client::{encoding::text::encode, registry::Registry};
 
         <span class="kw">let </span>metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();

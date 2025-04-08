@@ -57,8 +57,7 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#59" id="59">59</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
@@ -69,8 +68,7 @@
 <span class="comment">// TODO(frando): remove
 </span><span class="doccomment">/// deprecated
 </span><span class="kw">pub mod </span>core {
-    <span class="kw">pub use </span><span class="kw">crate</span>::base::<span class="kw-2">*</span>;
-    <span class="kw">pub use </span><span class="kw">crate</span>::metrics::<span class="kw-2">*</span>;
+    <span class="kw">pub use crate</span>::{base::<span class="kw-2">*</span>, metrics::<span class="kw-2">*</span>};
 }
 
 <span class="kw">mod </span>metrics;
