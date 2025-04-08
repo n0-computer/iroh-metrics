@@ -51,56 +51,24 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-#[cfg(feature = <span class="string">"service"</span>)]
-</span><span class="kw">pub mod </span>metrics;
-
-<span class="doccomment">/// Exposes core types and traits
+</span><span class="doccomment">/// Exposes core types and traits
 </span><span class="kw">mod </span>base;
 <span class="kw">pub use </span>base::<span class="kw-2">*</span>;
+
+<span class="kw">mod </span>metrics;
+<span class="kw">pub use </span>metrics::<span class="kw-2">*</span>;
 
 <span class="attr">#[cfg(feature = <span class="string">"static_core"</span>)]
 </span><span class="kw">pub mod </span>static_core;
 
-<span class="doccomment">/// Exposes iroh metrics
-</span><span class="attr">#[cfg(feature = <span class="string">"service"</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"service"</span>)]
 </span><span class="kw">pub mod </span>service;
 
-<span class="kw">use </span>std::{collections::HashMap, time::Duration};
+<span class="kw">use </span>std::collections::HashMap;
 
 <span class="doccomment">/// Reexports `struct_iterable` to make matching versions easier.
 </span><span class="kw">pub use </span>struct_iterable;
@@ -135,35 +103,5 @@
         metrics.insert(metric.to_string(), value.unwrap());
     }
     metrics
-}
-
-<span class="doccomment">/// Configuration for pushing metrics to a remote endpoint.
-</span><span class="attr">#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
-</span><span class="kw">pub struct </span>PushMetricsConfig {
-    <span class="doccomment">/// The push interval.
-    </span><span class="kw">pub </span>interval: Duration,
-    <span class="doccomment">/// The endpoint url for the push metrics collector.
-    </span><span class="kw">pub </span>endpoint: String,
-    <span class="doccomment">/// The name of the service you're exporting metrics for.
-    ///
-    /// Generally, `metrics_exporter` is good enough for use
-    /// outside of production deployments.
-    </span><span class="kw">pub </span>service_name: String,
-    <span class="doccomment">/// The name of the instance you're exporting metrics for.
-    ///
-    /// This should be device-unique. If not, this will sum up
-    /// metrics from different devices.
-    ///
-    /// E.g. `username-laptop`, `username-phone`, etc.
-    ///
-    /// Another potential scheme with good privacy would be a
-    /// keyed blake3 hash of the secret key. (This gives you
-    /// an identifier that is as unique as a `NodeID`, but
-    /// can't be correlated to `NodeID`s.)
-    </span><span class="kw">pub </span>instance_name: String,
-    <span class="doccomment">/// The username for basic auth for the push metrics collector.
-    </span><span class="kw">pub </span>username: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    <span class="doccomment">/// The password for basic auth for the push metrics collector.
-    </span><span class="kw">pub </span>password: String,
 }
 </code></pre></div></section></main></body></html>
