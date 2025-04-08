@@ -210,6 +210,21 @@ pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send +
     }
 }
 
+/// Extension methods for types implementing [`Metric`].
+///
+/// This contains non-dyn-compatible methods, which is why they can't live on the [`Metric`] trait.
+pub trait MetricExt: Metric + Default {
+    /// Create a new instance and register with a registry.
+    #[cfg(feature = "metrics")]
+    fn new(registry: &mut prometheus_client::registry::Registry) -> Self {
+        let m = Self::default();
+        m.register(registry);
+        m
+    }
+}
+
+impl<T> MetricExt for T where T: Metric + Default {}
+
 /// Trait for a set of structs implementing [`Metric`].
 pub trait MetricSet {
     /// Returns an iterator of references to structs implmenting [`Metric`].
