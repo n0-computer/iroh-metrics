@@ -1,3 +1,3 @@
-var srcIndex = new Map(JSON.parse('[["iroh_metrics",["",[],["core.rs","lib.rs","metrics.rs","service.rs"]]]]'));
+var srcIndex = new Map(JSON.parse('[["iroh_metrics",["",[],["base.rs","lib.rs","metrics.rs","service.rs","static_core.rs"]]]]'));
 createSrcSidebar();
-//{"start":36,"fragment_lengths":[71]}
+//{"start":36,"fragment_lengths":[88]}

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["parse_prometheus_metrics"],"macro":["dec","dec_by","inc","inc_by","set"],"mod":["core","metrics"],"struct":["PushMetricsConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["parse_prometheus_metrics"],"macro":["dec","dec_by","inc","inc_by","set"],"mod":["metrics","service","static_core"],"struct":["Counter","Gauge","MetricItem","PushMetricsConfig"],"trait":["HistogramType","Metric","MetricExt","MetricSet","MetricType"]};

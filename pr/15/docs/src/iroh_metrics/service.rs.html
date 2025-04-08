@@ -155,31 +155,135 @@
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
 <a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     net::SocketAddr,
-    path::PathBuf,
+    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 
 <span class="kw">use </span>hyper::{service::service_fn, Request, Response};
+<span class="kw">use </span>prometheus_client::registry::Registry;
 <span class="kw">use </span>tokio::{io::AsyncWriteExt <span class="kw">as _</span>, net::TcpListener};
 <span class="kw">use </span>tracing::{debug, error, info, warn};
 
-<span class="kw">use crate</span>::{core::Core, parse_prometheus_metrics, Error};
+<span class="kw">use crate</span>::{parse_prometheus_metrics, Error};
 
 <span class="kw">type </span>BytesBody = http_body_util::Full&lt;hyper::body::Bytes&gt;;
 
-<span class="doccomment">/// Start a HTTP server to report metrics.
-</span><span class="kw">pub async fn </span>run(metrics_addr: SocketAddr) -&gt; std::io::Result&lt;()&gt; {
-    <span class="macro">info!</span>(<span class="string">"Starting metrics server on {metrics_addr}"</span>);
-    <span class="kw">let </span>listener = TcpListener::bind(metrics_addr).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="doccomment">/// Helper trait to abstract over different ways to access metrics.
+</span><span class="kw">pub trait </span>MetricsSource: Send + <span class="lifetime">'static </span>{
+    <span class="doccomment">/// Encodes all metrics into a string in the Open Metrics text format.
+    </span><span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt;;
+}
+
+<span class="kw">impl </span>MetricsSource <span class="kw">for </span>Registry {
+    <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>buf = String::new();
+        prometheus_client::encoding::text::encode(<span class="kw-2">&amp;mut </span>buf, <span class="kw-2">&amp;</span><span class="self">self</span>)
+            .expect(<span class="string">"writing to string always works"</span>);
+        <span class="prelude-val">Ok</span>(buf)
+    }
+}
+
+<span class="doccomment">/// A cloneable [`Registry`] in a read-write lock.
+///
+/// Useful if you need mutable access to a registry, while also using the services
+/// defined in [`crate::service`].
+</span><span class="kw">pub type </span>RwLockRegistry = Arc&lt;RwLock&lt;Registry&gt;&gt;;
+
+<span class="kw">impl </span>MetricsSource <span class="kw">for </span>RwLockRegistry {
+    <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
+        <span class="kw">let </span>inner = <span class="self">self</span>.read().expect(<span class="string">"poisened"</span>);
+        inner.encode_openmetrics()
+    }
+}
+
+<span class="doccomment">/// Start a HTTP server to expose metrics .
+</span><span class="kw">pub async fn </span>start_metrics_server(
+    addr: SocketAddr,
+    registry: <span class="kw">impl </span>MetricsSource + Clone,
+) -&gt; std::io::Result&lt;()&gt; {
+    <span class="macro">info!</span>(<span class="string">"Starting metrics server on {addr}"</span>);
+    <span class="kw">let </span>listener = TcpListener::bind(addr).<span class="kw">await</span><span class="question-mark">?</span>;
 
     <span class="kw">loop </span>{
         <span class="kw">let </span>(stream, _addr) = listener.accept().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>io = hyper_util::rt::TokioIo::new(stream);
+        <span class="kw">let </span>registry = registry.clone();
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = hyper::server::conn::http1::Builder::new()
-                .serve_connection(io, service_fn(handler))
+                .serve_connection(io, service_fn(<span class="kw">move </span>|req| handler(req, registry.clone())))
                 .<span class="kw">await
             </span>{
                 <span class="macro">error!</span>(<span class="string">"Error serving metrics connection: {err:#}"</span>);
@@ -188,27 +292,13 @@
     }
 }
 
-<span class="doccomment">/// HTTP handler that will respond with the OpenMetrics encoding of our metrics.
-</span><span class="kw">async fn </span>handler(_req: Request&lt;hyper::body::Incoming&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Response&lt;BytesBody&gt;, Error&gt; {
-    <span class="kw">let </span>core = Core::get().ok_or(Error::NoMetrics)<span class="question-mark">?</span>;
-    <span class="kw">let </span>content = core.encode();
-    <span class="kw">let </span>response = Response::builder()
-        .header(hyper::header::CONTENT_TYPE, <span class="string">"text/plain; charset=utf-8"</span>)
-        .body(body_full(content))
-        .expect(<span class="string">"Failed to build response"</span>);
-
-    <span class="prelude-val">Ok</span>(response)
-}
-
-<span class="doccomment">/// Creates a new [`BytesBody`] with given content.
-</span><span class="kw">fn </span>body_full(content: <span class="kw">impl </span>Into&lt;hyper::body::Bytes&gt;) -&gt; BytesBody {
-    http_body_util::Full::new(content.into())
-}
-
-<span class="doccomment">/// Start a metrics dumper loop to write metrics to an output file.
-</span><span class="kw">pub async fn </span>dumper(path: <span class="kw-2">&amp;</span>PathBuf, interval_ms: Duration) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-    <span class="macro">info!</span>(file = %path.display(), <span class="question-mark">?</span>interval_ms, <span class="string">"running metrics dumper"</span>);
-    <span class="kw">let _ </span>= Core::get().ok_or(Error::NoMetrics)<span class="question-mark">?</span>;
+<span class="doccomment">/// Start a metrics dumper service.
+</span><span class="kw">pub async fn </span>start_metrics_dumper(
+    path: std::path::PathBuf,
+    interval: std::time::Duration,
+    registry: <span class="kw">impl </span>MetricsSource,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), <span class="kw">crate</span>::Error&gt; {
+    <span class="macro">info!</span>(file = %path.display(), <span class="question-mark">?</span>interval, <span class="string">"running metrics dumper"</span>);
 
     <span class="kw">let </span>start = Instant::now();
 
@@ -222,21 +312,88 @@
     <span class="kw">let </span><span class="kw-2">mut </span>file = tokio::io::BufWriter::new(file);
 
     <span class="comment">// Dump metrics once with a header
-    </span>dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    </span>dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="kw-2">&amp;</span>registry, <span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">loop </span>{
-        dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
-        tokio::time::sleep(interval_ms).<span class="kw">await</span>;
+        dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="kw-2">&amp;</span>registry, <span class="bool-val">false</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+        tokio::time::sleep(interval).<span class="kw">await</span>;
     }
+}
+
+<span class="doccomment">/// Start a metrics exporter service.
+</span><span class="kw">pub async fn </span>start_metrics_exporter(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) {
+    <span class="kw">let </span>MetricsExporterConfig {
+        interval,
+        endpoint,
+        service_name,
+        instance_name,
+        username,
+        password,
+    } = cfg;
+    <span class="kw">let </span>push_client = reqwest::Client::new();
+    <span class="kw">let </span>prom_gateway_uri = <span class="macro">format!</span>(
+        <span class="string">"{}/metrics/job/{}/instance/{}"</span>,
+        endpoint, service_name, instance_name
+    );
+    <span class="kw">loop </span>{
+        tokio::time::sleep(interval).<span class="kw">await</span>;
+        <span class="kw">let </span>buf = <span class="kw">match </span>registry.encode_openmetrics() {
+            <span class="prelude-val">Ok</span>(buf) =&gt; buf,
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">tracing::warn!</span>(<span class="string">"Failed to encode metrics: {err:#}"</span>);
+                <span class="kw">break</span>;
+            }
+        };
+        <span class="kw">let </span><span class="kw-2">mut </span>req = push_client.post(<span class="kw-2">&amp;</span>prom_gateway_uri);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(username) = username.clone() {
+            req = req.basic_auth(username, <span class="prelude-val">Some</span>(password.clone()));
+        }
+        <span class="kw">let </span>res = <span class="kw">match </span>req.body(buf).send().<span class="kw">await </span>{
+            <span class="prelude-val">Ok</span>(res) =&gt; res,
+            <span class="prelude-val">Err</span>(e) =&gt; {
+                <span class="macro">warn!</span>(<span class="string">"failed to push metrics: {}"</span>, e);
+                <span class="kw">continue</span>;
+            }
+        };
+        <span class="kw">match </span>res.status() {
+            reqwest::StatusCode::OK =&gt; {
+                <span class="macro">debug!</span>(<span class="string">"pushed metrics to gateway"</span>);
+            }
+            <span class="kw">_ </span>=&gt; {
+                <span class="macro">warn!</span>(<span class="string">"failed to push metrics to gateway: {:?}"</span>, res);
+                <span class="kw">let </span>body = res.text().<span class="kw">await</span>.unwrap();
+                <span class="macro">warn!</span>(<span class="string">"error body: {}"</span>, body);
+            }
+        }
+    }
+}
+
+<span class="doccomment">/// HTTP handler that will respond with the OpenMetrics encoding of our metrics.
+</span><span class="kw">async fn </span>handler(
+    _req: Request&lt;hyper::body::Incoming&gt;,
+    registry: <span class="kw">impl </span>MetricsSource,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Response&lt;BytesBody&gt;, Error&gt; {
+    <span class="kw">let </span>content = registry.encode_openmetrics()<span class="question-mark">?</span>;
+    <span class="kw">let </span>response = Response::builder()
+        .header(hyper::header::CONTENT_TYPE, <span class="string">"text/plain; charset=utf-8"</span>)
+        .body(body_full(content))
+        .expect(<span class="string">"Failed to build response"</span>);
+
+    <span class="prelude-val">Ok</span>(response)
+}
+
+<span class="doccomment">/// Creates a new [`BytesBody`] with given content.
+</span><span class="kw">fn </span>body_full(content: <span class="kw">impl </span>Into&lt;hyper::body::Bytes&gt;) -&gt; BytesBody {
+    http_body_util::Full::new(content.into())
 }
 
 <span class="doccomment">/// Dump metrics to a file.
 </span><span class="kw">async fn </span>dump_metrics(
     file: <span class="kw-2">&amp;mut </span>tokio::io::BufWriter&lt;tokio::fs::File&gt;,
     start: <span class="kw-2">&amp;</span>Instant,
+    registry: <span class="kw-2">&amp;</span><span class="kw">impl </span>MetricsSource,
     write_header: bool,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-    <span class="kw">let </span>core = Core::get().ok_or(Error::NoMetrics)<span class="question-mark">?</span>;
-    <span class="kw">let </span>m = core.encode();
+    <span class="kw">let </span>m = registry.encode_openmetrics()<span class="question-mark">?</span>;
     <span class="kw">let </span>m = parse_prometheus_metrics(<span class="kw-2">&amp;</span>m);
     <span class="kw">let </span>time_since_start = start.elapsed().as_millis() <span class="kw">as </span>f64;
 
@@ -268,48 +425,33 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Export metrics to a push gateway.
-</span><span class="kw">pub async fn </span>exporter(
-    gateway_endpoint: String,
-    service_name: String,
-    instance_name: String,
-    username: <span class="prelude-ty">Option</span>&lt;String&gt;,
-    password: String,
-    interval: Duration,
-) {
-    <span class="kw">let </span><span class="prelude-val">Some</span>(core) = Core::get() <span class="kw">else </span>{
-        <span class="macro">error!</span>(<span class="string">"metrics disabled"</span>);
-        <span class="kw">return</span>;
-    };
-    <span class="kw">let </span>push_client = reqwest::Client::new();
-    <span class="kw">let </span>prom_gateway_uri = <span class="macro">format!</span>(
-        <span class="string">"{}/metrics/job/{}/instance/{}"</span>,
-        gateway_endpoint, service_name, instance_name
-    );
-    <span class="kw">loop </span>{
-        tokio::time::sleep(interval).<span class="kw">await</span>;
-        <span class="kw">let </span>buff = core.encode();
-        <span class="kw">let </span><span class="kw-2">mut </span>req = push_client.post(<span class="kw-2">&amp;</span>prom_gateway_uri);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(username) = username.clone() {
-            req = req.basic_auth(username, <span class="prelude-val">Some</span>(password.clone()));
-        }
-        <span class="kw">let </span>res = <span class="kw">match </span>req.body(buff).send().<span class="kw">await </span>{
-            <span class="prelude-val">Ok</span>(res) =&gt; res,
-            <span class="prelude-val">Err</span>(e) =&gt; {
-                <span class="macro">warn!</span>(<span class="string">"failed to push metrics: {}"</span>, e);
-                <span class="kw">continue</span>;
-            }
-        };
-        <span class="kw">match </span>res.status() {
-            reqwest::StatusCode::OK =&gt; {
-                <span class="macro">debug!</span>(<span class="string">"pushed metrics to gateway"</span>);
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="macro">warn!</span>(<span class="string">"failed to push metrics to gateway: {:?}"</span>, res);
-                <span class="kw">let </span>body = res.text().<span class="kw">await</span>.unwrap();
-                <span class="macro">warn!</span>(<span class="string">"error body: {}"</span>, body);
-            }
-        }
-    }
+<span class="doccomment">/// Configuration for pushing metrics to a remote endpoint.
+</span><span class="attr">#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
+</span><span class="kw">pub struct </span>MetricsExporterConfig {
+    <span class="doccomment">/// The push interval.
+    </span><span class="kw">pub </span>interval: Duration,
+    <span class="doccomment">/// The endpoint url for the push metrics collector.
+    </span><span class="kw">pub </span>endpoint: String,
+    <span class="doccomment">/// The name of the service you're exporting metrics for.
+    ///
+    /// Generally, `metrics_exporter` is good enough for use
+    /// outside of production deployments.
+    </span><span class="kw">pub </span>service_name: String,
+    <span class="doccomment">/// The name of the instance you're exporting metrics for.
+    ///
+    /// This should be device-unique. If not, this will sum up
+    /// metrics from different devices.
+    ///
+    /// E.g. `username-laptop`, `username-phone`, etc.
+    ///
+    /// Another potential scheme with good privacy would be a
+    /// keyed blake3 hash of the secret key. (This gives you
+    /// an identifier that is as unique as a `NodeID`, but
+    /// can't be correlated to `NodeID`s.)
+    </span><span class="kw">pub </span>instance_name: String,
+    <span class="doccomment">/// The username for basic auth for the push metrics collector.
+    </span><span class="kw">pub </span>username: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The password for basic auth for the push metrics collector.
+    </span><span class="kw">pub </span>password: String,
 }
 </code></pre></div></section></main></body></html>

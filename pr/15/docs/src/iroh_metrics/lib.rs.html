@@ -82,51 +82,7 @@
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#84" id="84">84</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
@@ -134,13 +90,17 @@
 </span><span class="kw">pub mod </span>metrics;
 
 <span class="doccomment">/// Exposes core types and traits
-</span><span class="kw">pub mod </span>core;
+</span><span class="kw">mod </span>base;
+<span class="kw">pub use </span>base::<span class="kw-2">*</span>;
+
+<span class="attr">#[cfg(feature = <span class="string">"static_core"</span>)]
+</span><span class="kw">pub mod </span>static_core;
 
 <span class="doccomment">/// Exposes iroh metrics
 </span><span class="attr">#[cfg(feature = <span class="string">"service"</span>)]
-</span><span class="kw">mod </span>service;
+</span><span class="kw">pub mod </span>service;
 
-<span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::{collections::HashMap, time::Duration};
 
 <span class="doccomment">/// Reexports `struct_iterable` to make matching versions easier.
 </span><span class="kw">pub use </span>struct_iterable;
@@ -154,54 +114,6 @@
     <span class="doccomment">/// Any IO related error.
     </span><span class="attr">#[error(<span class="string">"IO: {0}"</span>)]
     </span>Io(<span class="attr">#[from] </span>std::io::Error),
-}
-
-<span class="doccomment">/// Increments the given counter or gauge by 1.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> inc {
-    (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident) =&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(m) = <span class="macro-nonterminal">$crate::core::Core::get</span>().and_then(|c| c.get_collector::&lt;<span class="macro-nonterminal">$m</span>&gt;()) {
-            m.<span class="macro-nonterminal">$f</span>.inc();
-        }
-    };
-}
-
-<span class="doccomment">/// Increments the given counter or gauge by `n`.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> inc_by {
-    (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(m) = <span class="macro-nonterminal">$crate::core::Core::get</span>().and_then(|c| c.get_collector::&lt;<span class="macro-nonterminal">$m</span>&gt;()) {
-            m.<span class="macro-nonterminal">$f</span>.inc_by(<span class="macro-nonterminal">$n</span>);
-        }
-    };
-}
-
-<span class="doccomment">/// Sets the given counter or gauge to `n`.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> set {
-    (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {
-        &lt;<span class="macro-nonterminal">$m </span><span class="kw">as </span><span class="macro-nonterminal">$crate::core::Metric</span>&gt;::with_metric(|m| m.<span class="macro-nonterminal">$f</span>.set(<span class="macro-nonterminal">$n</span>));
-    };
-}
-
-<span class="doccomment">/// Decrements the given gauge by 1.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> dec {
-    (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident) =&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(m) = <span class="macro-nonterminal">$crate::core::Core::get</span>().and_then(|c| c.get_collector::&lt;<span class="macro-nonterminal">$m</span>&gt;()) {
-            m.<span class="macro-nonterminal">$f</span>.dec();
-        }
-    };
-}
-
-<span class="doccomment">/// Decrements the given gauge `n`.
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> dec_by {
-    (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(m) = <span class="macro-nonterminal">$crate::core::Core::get</span>().and_then(|c| c.get_collector::&lt;<span class="macro-nonterminal">$m</span>&gt;()) {
-            m.<span class="macro-nonterminal">$f</span>.dec_by(<span class="macro-nonterminal">$n</span>);
-        }
-    };
 }
 
 <span class="doccomment">/// Parses Prometheus metrics from a string.
@@ -228,8 +140,8 @@
 <span class="doccomment">/// Configuration for pushing metrics to a remote endpoint.
 </span><span class="attr">#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
 </span><span class="kw">pub struct </span>PushMetricsConfig {
-    <span class="doccomment">/// The push interval in seconds.
-    </span><span class="kw">pub </span>interval: u64,
+    <span class="doccomment">/// The push interval.
+    </span><span class="kw">pub </span>interval: Duration,
     <span class="doccomment">/// The endpoint url for the push metrics collector.
     </span><span class="kw">pub </span>endpoint: String,
     <span class="doccomment">/// The name of the service you're exporting metrics for.
