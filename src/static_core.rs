@@ -10,7 +10,7 @@
 //!
 //! # Example:
 //! ```rust
-//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, Metric};
+//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
 //! use struct_iterable::Iterable;
 //!
 //! #[derive(Debug, Clone, Iterable)]
@@ -28,7 +28,7 @@
 //!     }
 //! }
 //!
-//! impl Metric for Metrics {
+//! impl MetricsGroup for Metrics {
 //!     fn name(&self) -> &'static str {
 //!         "my_metrics"
 //!     }
@@ -50,7 +50,7 @@ use erased_set::ErasedSyncSet;
 #[cfg(feature = "metrics")]
 use prometheus_client::{encoding::text::encode, registry::Registry};
 
-use crate::base::Metric;
+use crate::base::MetricsGroup;
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
@@ -117,7 +117,7 @@ impl Core {
     }
 
     /// Returns a reference to the mapped metrics instance.
-    pub fn get_collector<T: Metric>(&self) -> Option<&T> {
+    pub fn get_collector<T: MetricsGroup>(&self) -> Option<&T> {
         self.metrics_map.get::<T>()
     }
 
