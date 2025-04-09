@@ -1,7 +1,10 @@
 #[cfg(feature = "metrics")]
 pub use prometheus_client::registry::Registry;
 
-use crate::metrics::{Counter, Gauge};
+use crate::{
+    metrics::{Counter, Gauge},
+    MetricType,
+};
 
 /// Description of a group of metrics.
 pub trait MetricsGroup:
@@ -28,24 +31,62 @@ pub trait MetricsGroup:
     /// Returns the metrics descriptions.
     fn describe(&self) -> Vec<MetricItem> {
         let mut res = vec![];
-        for (metric, counter) in self.iter() {
-            if let Some(item) = counter.downcast_ref::<Counter>() {
+        for (name, item) in self.iter() {
+            if let Some(item) = item.downcast_ref::<Counter>() {
                 res.push(MetricItem {
-                    name: metric.to_string(),
+                    name: name.to_string(),
                     description: item.description.to_string(),
-                    r#type: "counter".to_string(),
+                    r#type: MetricType::Counter,
                 });
             }
-            if let Some(item) = counter.downcast_ref::<Gauge>() {
+            if let Some(item) = item.downcast_ref::<Gauge>() {
                 res.push(MetricItem {
-                    name: metric.to_string(),
+                    name: name.to_string(),
                     description: item.description.to_string(),
-                    r#type: "gauge".to_string(),
+                    r#type: MetricType::Gauge,
                 });
             }
         }
         res
     }
+
+    /// Returns an iterator over all metric items with their values and types.
+    fn values(&self) -> Vec<MetricValue> {
+        self.iter()
+            .filter_map(|(name, item)| {
+                if let Some(item) = item.downcast_ref::<Counter>() {
+                    Some(MetricValue {
+                        name,
+                        r#type: MetricType::Counter,
+                        description: item.description,
+                        value: item.get() as f32,
+                    })
+                } else if let Some(item) = item.downcast_ref::<Gauge>() {
+                    Some(MetricValue {
+                        name,
+                        r#type: MetricType::Gauge,
+                        description: item.description,
+                        value: item.get() as f32,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+}
+
+/// A metric item with its current value.
+#[derive(Debug)]
+pub struct MetricValue {
+    /// The type of this metric item.
+    pub r#type: MetricType,
+    /// The name of this metric item.
+    pub name: &'static str,
+    /// The description of this metric item.
+    pub description: &'static str,
+    /// The current value.
+    pub value: f32,
 }
 
 /// Extension methods for types implementing [`MetricsGroup`].
@@ -80,12 +121,6 @@ pub trait MetricsGroupSet {
     }
 }
 
-/// Interface for all single value based metrics.
-pub trait MetricType {
-    /// Returns the name of the metric
-    fn name(&self) -> &'static str;
-}
-
 /// Returns the metric item representation.
 #[derive(Debug, Clone)]
 pub struct MetricItem {
@@ -94,7 +129,7 @@ pub struct MetricItem {
     /// The description of the metric.
     pub description: String,
     /// The type of the metric.
-    pub r#type: String,
+    pub r#type: MetricType,
 }
 
 /// Ensure metrics can be used without `metrics` feature.
@@ -184,10 +219,10 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].name, "metric_a");
         assert_eq!(items[0].description, "metric_a");
-        assert_eq!(items[0].r#type, "counter");
+        assert_eq!(items[0].r#type, MetricType::Counter);
         assert_eq!(items[1].name, "metric_b");
         assert_eq!(items[1].description, "metric_b");
-        assert_eq!(items[1].r#type, "counter");
+        assert_eq!(items[1].r#type, MetricType::Counter);
 
         Ok(())
     }
@@ -238,7 +273,7 @@ foo_metric_b_total 2
         metrics.bar.count.inc_by(10);
 
         let mut collected = vec![];
-        // manual collection and iteration if not using prometheus_client
+        // manual collection and iteration with manual downcasting
         for group in metrics.iter() {
             for (name, metric) in group.iter() {
                 if let Some(counter) = metric.downcast_ref::<Counter>() {

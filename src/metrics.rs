@@ -6,6 +6,15 @@
 //! If the `metrics` feature is disabled, all operations defined on these types are noops,
 //! and the structs don't collect actual data.
 
+/// The types of metrics supported by this crate.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MetricType {
+    /// A [`Counter].
+    Counter,
+    /// A [`Gauge].
+    Gauge,
+}
+
 /// Open Metrics [`Counter`] to measure discrete events.
 ///
 /// Single monotonically increasing value metric.
