@@ -48,9 +48,9 @@ pub trait MetricsGroup:
     }
 }
 
-/// Extension methods for types implementing [`Metric`].
+/// Extension methods for types implementing [`MetricsGroup`].
 ///
-/// This contains non-dyn-compatible methods, which is why they can't live on the [`Metric`] trait.
+/// This contains non-dyn-compatible methods, which is why they can't live on the [`MetricsGroup`] trait.
 pub trait MetricsGroupExt: MetricsGroup + Default {
     /// Create a new instance and register with a registry.
     #[cfg(feature = "metrics")]
@@ -63,9 +63,9 @@ pub trait MetricsGroupExt: MetricsGroup + Default {
 
 impl<T> MetricsGroupExt for T where T: MetricsGroup + Default {}
 
-/// Trait for a set of structs implementing [`Metric`].
+/// Trait for a set of structs implementing [`MetricsGroup`].
 pub trait MetricsGroupSet {
-    /// Returns an iterator of references to structs implementing [`Metric`].
+    /// Returns an iterator of references to structs implementing [`MetricsGroup`].
     fn iter(&self) -> impl IntoIterator<Item = &dyn MetricsGroup>;
 
     /// Returns the name of this metrics group set.

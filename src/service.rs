@@ -46,7 +46,7 @@ impl MetricsSource for RwLockRegistry {
 
 impl MetricsSource for Arc<Registry> {
     fn encode_openmetrics(&self) -> Result<String, Error> {
-        Arc::deref(&self).encode_openmetrics()
+        Arc::deref(self).encode_openmetrics()
     }
 }
 
