@@ -8,10 +8,9 @@ pub use base::*;
 
 // TODO(frando): remove
 /// deprecated
-pub mod core {
-    pub use crate::{base::*, metrics::*};
-}
-
+// pub mod core {
+//     pub use crate::{base::*, metrics::*};
+// }
 mod metrics;
 pub use metrics::*;
 

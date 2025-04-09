@@ -1,4 +1,7 @@
-pub use crate::metrics::{Counter, Gauge};
+#[cfg(feature = "metrics")]
+pub use prometheus_client::registry::Registry;
+
+use crate::metrics::{Counter, Gauge};
 
 /// Description of a group of metrics.
 pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send + Sync {
