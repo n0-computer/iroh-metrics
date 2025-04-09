@@ -29,20 +29,20 @@ pub trait MetricsGroup:
     fn name(&self) -> &'static str;
 
     /// Returns the metrics descriptions.
-    fn describe(&self) -> Vec<MetricItem> {
+    fn describe(&self) -> Vec<MetricDescription> {
         let mut res = vec![];
         for (name, item) in self.iter() {
             if let Some(item) = item.downcast_ref::<Counter>() {
-                res.push(MetricItem {
-                    name: name.to_string(),
-                    description: item.description.to_string(),
+                res.push(MetricDescription {
+                    name,
+                    description: item.description,
                     r#type: MetricType::Counter,
                 });
             }
             if let Some(item) = item.downcast_ref::<Gauge>() {
-                res.push(MetricItem {
-                    name: name.to_string(),
-                    description: item.description.to_string(),
+                res.push(MetricDescription {
+                    name,
+                    description: item.description,
                     r#type: MetricType::Gauge,
                 });
             }
@@ -51,34 +51,52 @@ pub trait MetricsGroup:
     }
 
     /// Returns an iterator over all metric items with their values and types.
-    fn values(&self) -> Vec<MetricValue> {
-        self.iter()
-            .filter_map(|(name, item)| {
-                if let Some(item) = item.downcast_ref::<Counter>() {
-                    Some(MetricValue {
-                        name,
-                        r#type: MetricType::Counter,
-                        description: item.description,
-                        value: item.get() as f32,
-                    })
-                } else if let Some(item) = item.downcast_ref::<Gauge>() {
-                    Some(MetricValue {
-                        name,
-                        r#type: MetricType::Gauge,
-                        description: item.description,
-                        value: item.get() as f32,
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
+    fn values(&self) -> ValuesIter {
+        ValuesIter { inner: self.iter() }
+    }
+}
+
+/// Iterator over metric items with their values.
+///
+/// Returned from [`MetricsGroup::values`].
+#[derive(Debug)]
+pub struct ValuesIter<'a> {
+    inner: std::vec::IntoIter<(&'static str, &'a dyn std::any::Any)>,
+}
+
+impl<'a> Iterator for ValuesIter<'a> {
+    type Item = MetricItem;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let (name, item) = self.inner.next()?;
+            if let Some(item) = item.downcast_ref::<Counter>() {
+                break Some(MetricItem {
+                    name,
+                    r#type: MetricType::Counter,
+                    description: item.description,
+                    value: MetricValue::Counter(item.get()),
+                });
+            } else if let Some(item) = item.downcast_ref::<Gauge>() {
+                break Some(MetricItem {
+                    name,
+                    r#type: MetricType::Gauge,
+                    description: item.description,
+                    value: MetricValue::Gauge(item.get()),
+                });
+            } else {
+                continue;
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }
 
 /// A metric item with its current value.
-#[derive(Debug)]
-pub struct MetricValue {
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct MetricItem {
     /// The type of this metric item.
     pub r#type: MetricType,
     /// The name of this metric item.
@@ -86,7 +104,26 @@ pub struct MetricValue {
     /// The description of this metric item.
     pub description: &'static str,
     /// The current value.
-    pub value: f32,
+    pub value: MetricValue,
+}
+
+/// The value of an individual metric item.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MetricValue {
+    /// A [`Counter`] value.
+    Counter(u64),
+    /// A [`Gauge`] value.
+    Gauge(i64),
+}
+
+impl MetricValue {
+    /// Returns the value as [`f32`].
+    pub fn to_f32(&self) -> f32 {
+        match self {
+            MetricValue::Counter(value) => *value as f32,
+            MetricValue::Gauge(value) => *value as f32,
+        }
+    }
 }
 
 /// Extension methods for types implementing [`MetricsGroup`].
@@ -107,7 +144,7 @@ impl<T> MetricsGroupExt for T where T: MetricsGroup + Default {}
 /// Trait for a set of structs implementing [`MetricsGroup`].
 pub trait MetricsGroupSet {
     /// Returns an iterator of references to structs implementing [`MetricsGroup`].
-    fn iter(&self) -> impl IntoIterator<Item = &dyn MetricsGroup>;
+    fn iter(&self) -> impl Iterator<Item = &dyn MetricsGroup>;
 
     /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
@@ -123,11 +160,11 @@ pub trait MetricsGroupSet {
 
 /// Returns the metric item representation.
 #[derive(Debug, Clone)]
-pub struct MetricItem {
+pub struct MetricDescription {
     /// The name of the metric.
-    pub name: String,
+    pub name: &'static str,
     /// The description of the metric.
-    pub description: String,
+    pub description: &'static str,
     /// The type of the metric.
     pub r#type: MetricType,
 }
@@ -204,11 +241,12 @@ mod tests {
             "combined"
         }
 
-        fn iter(&self) -> impl IntoIterator<Item = &dyn MetricsGroup> {
+        fn iter(&self) -> impl Iterator<Item = &dyn MetricsGroup> {
             [
                 &self.foo as &dyn MetricsGroup,
                 &self.bar as &dyn MetricsGroup,
             ]
+            .into_iter()
         }
     }
 
