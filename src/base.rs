@@ -4,7 +4,9 @@ pub use prometheus_client::registry::Registry;
 use crate::metrics::{Counter, Gauge};
 
 /// Description of a group of metrics.
-pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send + Sync {
+pub trait MetricsGroup:
+    struct_iterable::Iterable + std::fmt::Debug + 'static + Send + Sync
+{
     /// Initializes this metric group.
     #[cfg(feature = "metrics")]
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
@@ -49,7 +51,7 @@ pub trait Metric: struct_iterable::Iterable + std::fmt::Debug + 'static + Send +
 /// Extension methods for types implementing [`Metric`].
 ///
 /// This contains non-dyn-compatible methods, which is why they can't live on the [`Metric`] trait.
-pub trait MetricExt: Metric + Default {
+pub trait MetricsGroupExt: MetricsGroup + Default {
     /// Create a new instance and register with a registry.
     #[cfg(feature = "metrics")]
     fn new(registry: &mut prometheus_client::registry::Registry) -> Self {
@@ -59,12 +61,12 @@ pub trait MetricExt: Metric + Default {
     }
 }
 
-impl<T> MetricExt for T where T: Metric + Default {}
+impl<T> MetricsGroupExt for T where T: MetricsGroup + Default {}
 
 /// Trait for a set of structs implementing [`Metric`].
-pub trait MetricSet {
+pub trait MetricsGroupSet {
     /// Returns an iterator of references to structs implementing [`Metric`].
-    fn iter(&self) -> impl IntoIterator<Item = &dyn Metric>;
+    fn iter(&self) -> impl IntoIterator<Item = &dyn MetricsGroup>;
 
     /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
@@ -93,12 +95,6 @@ pub struct MetricItem {
     pub description: String,
     /// The type of the metric.
     pub r#type: String,
-}
-
-/// Interface for all distribution based metrics.
-pub trait HistogramType {
-    /// Returns the name of the metric
-    fn name(&self) -> &'static str;
 }
 
 /// Ensure metrics can be used without `metrics` feature.
@@ -137,7 +133,7 @@ mod tests {
         }
     }
 
-    impl Metric for FooMetrics {
+    impl MetricsGroup for FooMetrics {
         fn name(&self) -> &'static str {
             "foo"
         }
@@ -156,7 +152,7 @@ mod tests {
         }
     }
 
-    impl Metric for BarMetrics {
+    impl MetricsGroup for BarMetrics {
         fn name(&self) -> &'static str {
             "bar"
         }
@@ -168,13 +164,16 @@ mod tests {
         bar: BarMetrics,
     }
 
-    impl MetricSet for CombinedMetrics {
+    impl MetricsGroupSet for CombinedMetrics {
         fn name(&self) -> &'static str {
             "combined"
         }
 
-        fn iter(&self) -> impl IntoIterator<Item = &dyn Metric> {
-            [&self.foo as &dyn Metric, &self.bar as &dyn Metric]
+        fn iter(&self) -> impl IntoIterator<Item = &dyn MetricsGroup> {
+            [
+                &self.foo as &dyn MetricsGroup,
+                &self.bar as &dyn MetricsGroup,
+            ]
         }
     }
 
