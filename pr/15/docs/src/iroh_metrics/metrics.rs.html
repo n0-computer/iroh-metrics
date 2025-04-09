@@ -164,7 +164,16 @@
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
 <a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines the individual metric types.
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines the individual metric types.
 //!
 //! If the `metrics` feature is enabled, they contain metric types based on atomics
 //! which can be modified without needing mutable access.
@@ -172,7 +181,16 @@
 //! If the `metrics` feature is disabled, all operations defined on these types are noops,
 //! and the structs don't collect actual data.
 
-/// Open Metrics [`Counter`] to measure discrete events.
+/// The types of metrics supported by this crate.
+</span><span class="attr">#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+</span><span class="kw">pub enum </span>MetricType {
+    <span class="doccomment">/// A [`Counter].
+    </span>Counter,
+    <span class="doccomment">/// A [`Gauge].
+    </span>Gauge,
+}
+
+<span class="doccomment">/// Open Metrics [`Counter`] to measure discrete events.
 ///
 /// Single monotonically increasing value metric.
 </span><span class="attr">#[derive(Debug, Clone)]

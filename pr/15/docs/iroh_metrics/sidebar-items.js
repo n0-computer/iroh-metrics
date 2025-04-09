@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["parse_prometheus_metrics"],"macro":["dec","dec_by","inc","inc_by","set"],"mod":["service","static_core"],"struct":["Counter","Gauge","MetricItem","Registry"],"trait":["MetricType","MetricsGroup","MetricsGroupExt","MetricsGroupSet"]};
+window.SIDEBAR_ITEMS = {"enum":["Error","MetricType"],"fn":["parse_prometheus_metrics"],"macro":["dec","dec_by","inc","inc_by","set"],"mod":["service","static_core"],"struct":["Counter","Gauge","MetricItem","MetricValue","Registry"],"trait":["MetricsGroup","MetricsGroupExt","MetricsGroupSet"]};
