@@ -229,10 +229,18 @@
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
 
 </span><span class="kw">use </span>std::{
     net::SocketAddr,
+    ops::Deref,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -269,8 +277,14 @@
 
 <span class="kw">impl </span>MetricsSource <span class="kw">for </span>RwLockRegistry {
     <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
-        <span class="kw">let </span>inner = <span class="self">self</span>.read().expect(<span class="string">"poisened"</span>);
+        <span class="kw">let </span>inner = <span class="self">self</span>.read().expect(<span class="string">"poisoned"</span>);
         inner.encode_openmetrics()
+    }
+}
+
+<span class="kw">impl </span>MetricsSource <span class="kw">for </span>Arc&lt;Registry&gt; {
+    <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
+        Arc::deref(<span class="kw-2">&amp;</span><span class="self">self</span>).encode_openmetrics()
     }
 }
 

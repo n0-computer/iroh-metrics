@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["Counter","Gauge","MetricItem"],"trait":["HistogramType","Metric","MetricExt","MetricSet","MetricType"]};
