@@ -64,7 +64,7 @@ pub struct ValuesIter<'a> {
     inner: std::vec::IntoIter<(&'static str, &'a dyn std::any::Any)>,
 }
 
-impl<'a> Iterator for ValuesIter<'a> {
+impl Iterator for ValuesIter<'_> {
     type Item = MetricItem;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
