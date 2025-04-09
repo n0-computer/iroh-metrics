@@ -284,7 +284,7 @@
 
 <span class="kw">impl </span>MetricsSource <span class="kw">for </span>Arc&lt;Registry&gt; {
     <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
-        Arc::deref(<span class="kw-2">&amp;</span><span class="self">self</span>).encode_openmetrics()
+        Arc::deref(<span class="self">self</span>).encode_openmetrics()
     }
 }
 

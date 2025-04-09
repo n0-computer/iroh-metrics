@@ -190,7 +190,7 @@
 //!
 //! # Example:
 //! ```rust
-//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, Metric};
+//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
 //! use struct_iterable::Iterable;
 //!
 //! #[derive(Debug, Clone, Iterable)]
@@ -208,7 +208,7 @@
 //!     }
 //! }
 //!
-//! impl Metric for Metrics {
+//! impl MetricsGroup for Metrics {
 //!     fn name(&amp;self) -&gt; &amp;'static str {
 //!         "my_metrics"
 //!     }
@@ -230,7 +230,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
 </span><span class="kw">use </span>prometheus_client::{encoding::text::encode, registry::Registry};
 
-<span class="kw">use </span><span class="kw">crate</span>::base::Metric;
+<span class="kw">use </span><span class="kw">crate</span>::base::MetricsGroup;
 
 <span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
 </span><span class="kw">type </span>Registry = ();
@@ -297,7 +297,7 @@
     }
 
     <span class="doccomment">/// Returns a reference to the mapped metrics instance.
-    </span><span class="kw">pub fn </span>get_collector&lt;T: Metric&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
+    </span><span class="kw">pub fn </span>get_collector&lt;T: MetricsGroup&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt; {
         <span class="self">self</span>.metrics_map.get::&lt;T&gt;()
     }
 

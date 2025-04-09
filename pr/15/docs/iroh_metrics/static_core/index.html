@@ -7,7 +7,7 @@ Divided up into modules, each module has its own metrics.</p>
 </ul>
 <p>To expose the metrics, start the metrics service with <code>start_metrics_server()</code>.</p>
 <h2 id="example"><a class="doc-anchor" href="#example">§</a>Example:</h2>
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>iroh_metrics::{inc, inc_by, static_core::Core, Counter, Metric};
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
 <span class="kw">use </span>struct_iterable::Iterable;
 
 <span class="attr">#[derive(Debug, Clone, Iterable)]
@@ -25,7 +25,7 @@ Divided up into modules, each module has its own metrics.</p>
     }
 }
 
-<span class="kw">impl </span>Metric <span class="kw">for </span>Metrics {
+<span class="kw">impl </span>MetricsGroup <span class="kw">for </span>Metrics {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="string">"my_metrics"
     </span>}

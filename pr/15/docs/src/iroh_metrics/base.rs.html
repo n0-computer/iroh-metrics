@@ -276,14 +276,15 @@
 <a href="#275" id="275">275</a>
 <a href="#276" id="276">276</a>
 <a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
+<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
 </span><span class="kw">pub use </span>prometheus_client::registry::Registry;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{Counter, Gauge};
 
 <span class="doccomment">/// Description of a group of metrics.
-</span><span class="kw">pub trait </span>Metric: struct_iterable::Iterable + std::fmt::Debug + <span class="lifetime">'static </span>+ Send + Sync {
+</span><span class="kw">pub trait </span>MetricsGroup:
+    struct_iterable::Iterable + std::fmt::Debug + <span class="lifetime">'static </span>+ Send + Sync
+{
     <span class="doccomment">/// Initializes this metric group.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>register(<span class="kw-2">&amp;</span><span class="self">self</span>, registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) {
@@ -325,10 +326,10 @@
     }
 }
 
-<span class="doccomment">/// Extension methods for types implementing [`Metric`].
+<span class="doccomment">/// Extension methods for types implementing [`MetricsGroup`].
 ///
-/// This contains non-dyn-compatible methods, which is why they can't live on the [`Metric`] trait.
-</span><span class="kw">pub trait </span>MetricExt: Metric + Default {
+/// This contains non-dyn-compatible methods, which is why they can't live on the [`MetricsGroup`] trait.
+</span><span class="kw">pub trait </span>MetricsGroupExt: MetricsGroup + Default {
     <span class="doccomment">/// Create a new instance and register with a registry.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>new(registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) -&gt; <span class="self">Self </span>{
@@ -338,12 +339,12 @@
     }
 }
 
-<span class="kw">impl</span>&lt;T&gt; MetricExt <span class="kw">for </span>T <span class="kw">where </span>T: Metric + Default {}
+<span class="kw">impl</span>&lt;T&gt; MetricsGroupExt <span class="kw">for </span>T <span class="kw">where </span>T: MetricsGroup + Default {}
 
-<span class="doccomment">/// Trait for a set of structs implementing [`Metric`].
-</span><span class="kw">pub trait </span>MetricSet {
-    <span class="doccomment">/// Returns an iterator of references to structs implementing [`Metric`].
-    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>Metric&gt;;
+<span class="doccomment">/// Trait for a set of structs implementing [`MetricsGroup`].
+</span><span class="kw">pub trait </span>MetricsGroupSet {
+    <span class="doccomment">/// Returns an iterator of references to structs implementing [`MetricsGroup`].
+    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt;;
 
     <span class="doccomment">/// Returns the name of this metrics group set.
     </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
@@ -372,12 +373,6 @@
     </span><span class="kw">pub </span>description: String,
     <span class="doccomment">/// The type of the metric.
     </span><span class="kw">pub </span>r#type: String,
-}
-
-<span class="doccomment">/// Interface for all distribution based metrics.
-</span><span class="kw">pub trait </span>HistogramType {
-    <span class="doccomment">/// Returns the name of the metric
-    </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 }
 
 <span class="doccomment">/// Ensure metrics can be used without `metrics` feature.
@@ -416,7 +411,7 @@
         }
     }
 
-    <span class="kw">impl </span>Metric <span class="kw">for </span>FooMetrics {
+    <span class="kw">impl </span>MetricsGroup <span class="kw">for </span>FooMetrics {
         <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
             <span class="string">"foo"
         </span>}
@@ -435,7 +430,7 @@
         }
     }
 
-    <span class="kw">impl </span>Metric <span class="kw">for </span>BarMetrics {
+    <span class="kw">impl </span>MetricsGroup <span class="kw">for </span>BarMetrics {
         <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
             <span class="string">"bar"
         </span>}
@@ -447,13 +442,16 @@
         bar: BarMetrics,
     }
 
-    <span class="kw">impl </span>MetricSet <span class="kw">for </span>CombinedMetrics {
+    <span class="kw">impl </span>MetricsGroupSet <span class="kw">for </span>CombinedMetrics {
         <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
             <span class="string">"combined"
         </span>}
 
-        <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>Metric&gt; {
-            [<span class="kw-2">&amp;</span><span class="self">self</span>.foo <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Metric, <span class="kw-2">&amp;</span><span class="self">self</span>.bar <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Metric]
+        <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt; {
+            [
+                <span class="kw-2">&amp;</span><span class="self">self</span>.foo <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.bar <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
+            ]
         }
     }
 
