@@ -20,6 +20,8 @@ pub mod static_core;
 #[cfg(feature = "service")]
 pub mod service;
 
+extern crate self as iroh_metrics;
+
 use std::collections::HashMap;
 
 /// Potential errors from this library.

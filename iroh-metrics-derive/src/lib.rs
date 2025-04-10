@@ -2,154 +2,133 @@ use heck::ToSnakeCase;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    Attribute, DeriveInput, Expr, ExprLit, Fields, Lit, Meta, MetaList, MetaNameValue,
-    parse::Parser, parse_macro_input,
+    parse_macro_input, spanned::Spanned, Attribute, Data, DeriveInput, Error, Expr, ExprLit,
+    Fields, Ident, Lit, LitStr,
 };
 
-#[proc_macro_derive(MetricsGroup, attributes(metrics))]
+#[proc_macro_derive(MetricsGroup, attributes(metrics_group))]
 pub fn derive_metrics_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let metrics = impl_metrics(&input);
-    let iterable = impl_iterable(&input);
-    TokenStream::from(quote! {
-        #metrics
-        #iterable
-    })
+    let mut out = proc_macro2::TokenStream::new();
+    out.extend(expand_metrics(&input).unwrap_or_else(Error::into_compile_error));
+    out.extend(expand_iterable(&input).unwrap_or_else(Error::into_compile_error));
+    out.into()
 }
 
 #[proc_macro_derive(Iterable)]
 pub fn derive_iterable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    impl_iterable(&input).into()
+    let out = expand_iterable(&input).unwrap_or_else(Error::into_compile_error);
+    out.into()
 }
 
-fn impl_iterable(input: &DeriveInput) -> proc_macro2::TokenStream {
-    let name = &input.ident;
+fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
+    let (name, fields) = parse_named_struct(input)?;
 
-    let syn::Data::Struct(data) = &input.data else {
-        panic!("Only structs are supported.")
-    };
-    let Fields::Named(_fields) = &data.fields else {
-        panic!("Only structs with named fields are supported.")
-    };
+    let count = fields.len();
 
-    let mut fields_impl = quote! {};
-
-    let mut count = 0usize;
-    for field in &data.fields {
+    let mut match_arms = quote! {};
+    for (i, field) in fields.iter().enumerate() {
         let ident = field.ident.as_ref().unwrap();
-        let name = ident.to_string();
-        fields_impl = quote! {
-            #fields_impl
-            #count => Some((#name, &self.#ident as &dyn ::std::any::Any)),
-        };
-        count += 1;
+        let ident_str = ident.to_string();
+        match_arms.extend(quote! {
+            #i => Some((#ident_str, &self.#ident as &dyn ::std::any::Any)),
+        });
     }
 
-    quote! {
-        impl Iterable for #name {
+    Ok(quote! {
+        impl ::iroh_metrics::Iterable for #name {
             fn field_count(&self) -> usize {
                 #count
             }
 
             fn field(&self, n: usize) -> Option<(&'static str, &dyn ::std::any::Any)> {
                 match n {
-                    #fields_impl
+                    #match_arms
                     _ => None,
                 }
             }
         }
-    }
+    })
 }
 
-fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
-    let name = &input.ident;
+fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
+    let (name, fields) = parse_named_struct(input)?;
 
-    let syn::Data::Struct(data) = &input.data else {
-        panic!("Only structs are supported.")
-    };
-    let Fields::Named(_fields) = &data.fields else {
-        panic!("Only structs with named fields are supported.")
-    };
-
-    let mut fields_impl = quote! {};
-
-    for field in &data.fields {
+    let mut field_defaults = quote! {};
+    for field in fields {
         let field_name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
-        let doc = parse_doc_comment(&field.attrs)
-            .first()
-            .cloned()
-            .unwrap_or_else(|| field_name.to_string());
-        fields_impl = quote! {
-            #fields_impl
-            #field_name: #ty::new(#doc),
-        };
+        let description = parse_doc_first_line(&field.attrs);
+        let description = description.unwrap_or_else(|| field_name.to_string());
+
+        field_defaults.extend(quote! {
+            #field_name: #ty::new(#description),
+        });
     }
 
-    let attr_name =
-        parse_metrics_name(&input.attrs).unwrap_or_else(|| name.to_string().to_snake_case());
+    let name_str = parse_metrics_name(&input.attrs)?;
+    let name_str = name_str.unwrap_or_else(|| name.to_string().to_snake_case());
 
-    quote! {
-        impl Default for #name {
+    Ok(quote! {
+        impl ::std::default::Default for #name {
             fn default() -> Self {
                 Self {
-                    #fields_impl
+                    #field_defaults
                 }
             }
         }
 
-        impl MetricsGroup for #name {
+        impl ::iroh_metrics::MetricsGroup for #name {
             fn name(&self) -> &'static str {
-                #attr_name
+                #name_str
             }
         }
-    }
+    })
 }
 
-fn parse_doc_comment(attrs: &[Attribute]) -> Vec<String> {
-    let mut lines = vec![];
-    for attr in attrs {
-        if let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta {
-            if path.is_ident("doc") {
-                if let Expr::Lit(ExprLit {
-                    lit: Lit::Str(lit_str),
-                    ..
-                }) = value
-                {
-                    lines.push(lit_str.value().trim().to_string());
-                }
-            }
-        }
-    }
-    lines
+fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
+    attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .flat_map(|attr| attr.meta.require_name_value())
+        .find_map(|name_value| {
+            let Expr::Lit(ExprLit { lit, .. }) = &name_value.value else {
+                return None;
+            };
+            let Lit::Str(str) = lit else { return None };
+            Some(str.value().trim().to_string())
+        })
 }
 
-fn parse_metrics_name(attrs: &[Attribute]) -> Option<String> {
-    for attr in attrs {
-        if let Meta::List(MetaList { path, tokens, .. }) = &attr.meta {
-            if path.is_ident("metrics") {
-                let parser = syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated;
-                if let Ok(parsed) = parser.parse2(tokens.clone()) {
-                    for meta in parsed {
-                        if let Meta::NameValue(MetaNameValue {
-                            path,
-                            value:
-                                Expr::Lit(ExprLit {
-                                    lit: Lit::Str(lit_str),
-                                    ..
-                                }),
-                            ..
-                        }) = meta
-                        {
-                            if path.is_ident("name") {
-                                return Some(lit_str.value());
-                            }
-                        }
-                    }
-                }
+fn parse_metrics_name(attrs: &[Attribute]) -> Result<Option<String>, syn::Error> {
+    let mut out = None;
+    for attr in attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("metrics_group"))
+    {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("name") {
+                let s: LitStr = meta.value()?.parse()?;
+                out = Some(s.value().trim().to_string());
+                Ok(())
+            } else {
+                Err(meta
+                    .error("The `metrics_group` attribute supports only a single `name` value. "))
             }
-        }
+        })?;
     }
-    None
+    Ok(out)
+}
+
+fn parse_named_struct(input: &DeriveInput) -> Result<(&Ident, &Fields), Error> {
+    match &input.data {
+        Data::Struct(data) if matches!(data.fields, Fields::Named(_)) => {
+            Ok((&input.ident, &data.fields))
+        }
+        _ => Err(Error::new(
+            input.span(),
+            "The `MetricsGroup` and `Iterable` derives support only structs.",
+        )),
+    }
 }

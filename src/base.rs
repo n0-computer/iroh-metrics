@@ -373,7 +373,7 @@ combined_bar_count_total 10
         use crate::{MetricValue, MetricsGroup};
 
         #[derive(Debug, Clone, MetricsGroup)]
-        #[metrics(name = "my-metrics")]
+        #[metrics_group(name = "my-metrics")]
         struct Metrics {
             /// Counts foos
             ///
@@ -386,16 +386,16 @@ combined_bar_count_total 10
         }
 
         let metrics = Metrics::default();
+        assert_eq!(metrics.name(), "my-metrics");
 
         metrics.foo.inc();
         metrics.bar.inc_by(2);
         metrics.baz.set(3);
 
-        let values: Vec<_> = metrics.values().collect();
-        let foo = values[0];
-        let bar = values[1];
-        let baz = values[2];
-        assert_eq!(metrics.name(), "my-metrics");
+        let mut values = metrics.values();
+        let foo = values.next().unwrap();
+        let bar = values.next().unwrap();
+        let baz = values.next().unwrap();
         assert_eq!(foo.value, MetricValue::Counter(1));
         assert_eq!(foo.name, "foo");
         assert_eq!(foo.description, "Counts foos");
@@ -410,5 +410,7 @@ combined_bar_count_total 10
         struct FooMetrics {}
         let metrics = FooMetrics::default();
         assert_eq!(metrics.name(), "foo_metrics");
+        let mut values = metrics.values();
+        assert_eq!(values.next(), None);
     }
 }
