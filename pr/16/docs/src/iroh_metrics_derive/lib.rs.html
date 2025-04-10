@@ -103,7 +103,57 @@
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
 <a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a></pre></div><pre class="rust"><code><span class="kw">use </span>heck::ToSnakeCase;
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a></pre></div><pre class="rust"><code><span class="kw">use </span>heck::ToSnakeCase;
 <span class="kw">use </span>proc_macro::TokenStream;
 <span class="kw">use </span>quote::quote;
 <span class="kw">use </span>syn::{
@@ -114,7 +164,57 @@
 <span class="attr">#[proc_macro_derive(MetricsGroup, attributes(metrics))]
 </span><span class="kw">pub fn </span>derive_metrics_group(input: TokenStream) -&gt; TokenStream {
     <span class="kw">let </span>input = <span class="macro">parse_macro_input!</span>(input <span class="kw">as </span>DeriveInput);
-    impl_metrics(<span class="kw-2">&amp;</span>input).into()
+    <span class="kw">let </span>metrics = impl_metrics(<span class="kw-2">&amp;</span>input);
+    <span class="kw">let </span>iterable = impl_iterable(<span class="kw-2">&amp;</span>input);
+    TokenStream::from(<span class="macro">quote!</span> {
+        #metrics
+        #iterable
+    })
+}
+
+<span class="attr">#[proc_macro_derive(Iterable)]
+</span><span class="kw">pub fn </span>derive_iterable(input: TokenStream) -&gt; TokenStream {
+    <span class="kw">let </span>input = <span class="macro">parse_macro_input!</span>(input <span class="kw">as </span>DeriveInput);
+    impl_iterable(<span class="kw-2">&amp;</span>input).into()
+}
+
+<span class="kw">fn </span>impl_iterable(input: <span class="kw-2">&amp;</span>DeriveInput) -&gt; proc_macro2::TokenStream {
+    <span class="kw">let </span>name = <span class="kw-2">&amp;</span>input.ident;
+
+    <span class="kw">let </span>syn::Data::Struct(data) = <span class="kw-2">&amp;</span>input.data <span class="kw">else </span>{
+        <span class="macro">panic!</span>(<span class="string">"Only structs are supported."</span>)
+    };
+    <span class="kw">let </span>Fields::Named(_fields) = <span class="kw-2">&amp;</span>data.fields <span class="kw">else </span>{
+        <span class="macro">panic!</span>(<span class="string">"Only structs with named fields are supported."</span>)
+    };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>fields_impl = <span class="macro">quote!</span> {};
+
+    <span class="kw">let </span><span class="kw-2">mut </span>count = <span class="number">0usize</span>;
+    <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;</span>data.fields {
+        <span class="kw">let </span>ident = field.ident.as_ref().unwrap();
+        <span class="kw">let </span>name = ident.to_string();
+        fields_impl = <span class="macro">quote!</span> {
+            #fields_impl
+            #count =&gt; <span class="prelude-val">Some</span>((#name, <span class="kw-2">&amp;</span><span class="self">self</span>.#ident <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>::std::any::Any)),
+        };
+        count += <span class="number">1</span>;
+    }
+
+    <span class="macro">quote!</span> {
+        <span class="kw">impl </span>Iterable <span class="kw">for </span>#name {
+            <span class="kw">fn </span>field_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+                #count
+            }
+
+            <span class="kw">fn </span>field(<span class="kw-2">&amp;</span><span class="self">self</span>, n: usize) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, <span class="kw-2">&amp;</span><span class="kw">dyn </span>::std::any::Any)&gt; {
+                <span class="kw">match </span>n {
+                    #fields_impl
+                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+                }
+            }
+        }
+    }
 }
 
 <span class="kw">fn </span>impl_metrics(input: <span class="kw-2">&amp;</span>DeriveInput) -&gt; proc_macro2::TokenStream {

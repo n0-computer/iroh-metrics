@@ -57,14 +57,17 @@
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-</span><span class="doccomment">/// Exposes core types and traits
+</span><span class="kw">pub use </span>iroh_metrics_derive::{Iterable, MetricsGroup};
+
+<span class="doccomment">/// Exposes core types and traits
 </span><span class="kw">mod </span>base;
 <span class="kw">pub use </span>base::<span class="kw-2">*</span>;
-<span class="attr">#[cfg(feature = <span class="string">"derive"</span>)]
-</span><span class="kw">pub use </span>iroh_metrics_derive::MetricsGroup;
 
 <span class="kw">mod </span>metrics;
 <span class="kw">pub use </span>metrics::<span class="kw-2">*</span>;
+
+<span class="kw">mod </span>iterable;
+<span class="kw">pub use </span>iterable::<span class="kw-2">*</span>;
 
 <span class="attr">#[cfg(feature = <span class="string">"static_core"</span>)]
 </span><span class="kw">pub mod </span>static_core;
@@ -73,9 +76,6 @@
 </span><span class="kw">pub mod </span>service;
 
 <span class="kw">use </span>std::collections::HashMap;
-
-<span class="doccomment">/// Reexports `struct_iterable` to make matching versions easier.
-</span><span class="kw">pub use </span>struct_iterable;
 
 <span class="doccomment">/// Potential errors from this library.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]

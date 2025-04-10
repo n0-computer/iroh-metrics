@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":["MetricsGroup"]};
+window.SIDEBAR_ITEMS = {"derive":["Iterable","MetricsGroup"]};
