@@ -37,13 +37,13 @@ where
 
 /// Iterator over the fields of a struct.
 ///
-/// Returned from [`Iterable::iter`] and [`dyn Iterable::dyn_iter`].
+/// Returned from [`IntoIterable::iter`].
 pub struct FieldIter<'a> {
     pos: usize,
     inner: &'a dyn Iterable,
 }
 
-impl<'a> fmt::Debug for FieldIter<'a> {
+impl fmt::Debug for FieldIter<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "FieldIter")
     }

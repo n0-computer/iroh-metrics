@@ -78,7 +78,7 @@ fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
         let field_name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
         let doc = parse_doc_comment(&field.attrs)
-            .get(0)
+            .first()
             .cloned()
             .unwrap_or_else(|| field_name.to_string());
         fields_impl = quote! {
@@ -107,7 +107,7 @@ fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
-fn parse_doc_comment<'a>(attrs: &'a [Attribute]) -> Vec<String> {
+fn parse_doc_comment(attrs: &[Attribute]) -> Vec<String> {
     let mut lines = vec![];
     for attr in attrs {
         if let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta {

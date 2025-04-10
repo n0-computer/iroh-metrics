@@ -1,3 +1,5 @@
+use std::any::Any;
+
 #[cfg(feature = "metrics")]
 pub use prometheus_client::registry::Registry;
 
@@ -5,8 +7,6 @@ use crate::{
     metrics::{Counter, Gauge},
     FieldIter, IntoIterable, Iterable, MetricType,
 };
-
-use std::any::Any;
 /// Description of a group of metrics.
 pub trait MetricsGroup:
     Any + Iterable + IntoIterable + std::fmt::Debug + 'static + Send + Sync
@@ -206,9 +206,8 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
-    use crate::Iterable;
-
     use super::*;
+    use crate::Iterable;
 
     #[derive(Debug, Clone, Iterable)]
     pub struct FooMetrics {
