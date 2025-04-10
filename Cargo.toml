@@ -31,7 +31,6 @@ unused-async = "warn"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-struct_iterable = "0.1"
 thiserror = "2.0.6"
 tracing = "0.1"
 
@@ -49,7 +48,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 
 # derive feature
-iroh-metrics-derive = { path = "./iroh-metrics-derive", optional = true }
+iroh-metrics-derive = { path = "./iroh-metrics-derive" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macros", "time", "test-util"] }
@@ -74,8 +73,6 @@ service = [
 ]
 # Enables a global, static metrics collector
 static_core = ["metrics", "dep:erased_set"]
-# Enables the MetricsGroup derive macro
-derive = ["dep:iroh-metrics-derive"]
 
 [package.metadata.docs.rs]
 all-features = true

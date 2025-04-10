@@ -2,14 +2,17 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
+pub use iroh_metrics_derive::{Iterable, MetricsGroup};
+
 /// Exposes core types and traits
 mod base;
 pub use base::*;
-#[cfg(feature = "derive")]
-pub use iroh_metrics_derive::MetricsGroup;
 
 mod metrics;
 pub use metrics::*;
+
+mod iterable;
+pub use iterable::*;
 
 #[cfg(feature = "static_core")]
 pub mod static_core;
@@ -18,9 +21,6 @@ pub mod static_core;
 pub mod service;
 
 use std::collections::HashMap;
-
-/// Reexports `struct_iterable` to make matching versions easier.
-pub use struct_iterable;
 
 /// Potential errors from this library.
 #[derive(Debug, thiserror::Error)]

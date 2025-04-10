@@ -3,12 +3,13 @@ pub use prometheus_client::registry::Registry;
 
 use crate::{
     metrics::{Counter, Gauge},
-    MetricType,
+    FieldIter, IntoIterable, Iterable, MetricType,
 };
 
+use std::any::Any;
 /// Description of a group of metrics.
 pub trait MetricsGroup:
-    struct_iterable::Iterable + std::fmt::Debug + 'static + Send + Sync
+    Any + Iterable + IntoIterable + std::fmt::Debug + 'static + Send + Sync
 {
     /// Initializes this metric group.
     #[cfg(feature = "metrics")]
@@ -28,26 +29,9 @@ pub trait MetricsGroup:
     /// The name of this metric group.
     fn name(&self) -> &'static str;
 
-    /// Returns the metrics descriptions.
-    fn describe(&self) -> Vec<MetricDescription> {
-        let mut res = vec![];
-        for (name, item) in self.iter() {
-            if let Some(item) = item.downcast_ref::<Counter>() {
-                res.push(MetricDescription {
-                    name,
-                    description: item.description,
-                    r#type: MetricType::Counter,
-                });
-            }
-            if let Some(item) = item.downcast_ref::<Gauge>() {
-                res.push(MetricDescription {
-                    name,
-                    description: item.description,
-                    r#type: MetricType::Gauge,
-                });
-            }
-        }
-        res
+    /// Returns an iterator over all metric items with their descriptions.
+    fn describe(&self) -> DecribeIter {
+        DecribeIter { inner: self.iter() }
     }
 
     /// Returns an iterator over all metric items with their values and types.
@@ -60,8 +44,44 @@ pub trait MetricsGroup:
 ///
 /// Returned from [`MetricsGroup::values`].
 #[derive(Debug)]
+pub struct DecribeIter<'a> {
+    inner: FieldIter<'a>,
+}
+
+impl Iterator for DecribeIter<'_> {
+    type Item = MetricDescription;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let (name, item) = self.inner.next()?;
+            if let Some(item) = item.downcast_ref::<Counter>() {
+                break Some(MetricDescription {
+                    name,
+                    r#type: MetricType::Counter,
+                    description: item.description,
+                });
+            } else if let Some(item) = item.downcast_ref::<Gauge>() {
+                break Some(MetricDescription {
+                    name,
+                    r#type: MetricType::Gauge,
+                    description: item.description,
+                });
+            } else {
+                continue;
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+/// Iterator over metric items with their values.
+///
+/// Returned from [`MetricsGroup::values`].
+#[derive(Debug)]
 pub struct ValuesIter<'a> {
-    inner: std::vec::IntoIter<(&'static str, &'a dyn std::any::Any)>,
+    inner: FieldIter<'a>,
 }
 
 impl Iterator for ValuesIter<'_> {
@@ -186,7 +206,7 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
-    use struct_iterable::Iterable;
+    use crate::Iterable;
 
     use super::*;
 
@@ -253,7 +273,7 @@ mod tests {
     #[test]
     fn test_metric_description() -> Result<(), Box<dyn std::error::Error>> {
         let metrics = FooMetrics::default();
-        let items = metrics.describe();
+        let items: Vec<_> = metrics.describe().collect();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].name, "metric_a");
         assert_eq!(items[0].description, "metric_a");
@@ -349,12 +369,11 @@ combined_bar_count_total 10
         assert_eq!(enc, exp);
     }
 
-    #[cfg(feature = "derive")]
     #[test]
     fn test_derive() {
-        use crate::{struct_iterable::Iterable, MetricValue, MetricsGroup};
+        use crate::{MetricValue, MetricsGroup};
 
-        #[derive(Debug, Clone, MetricsGroup, Iterable)]
+        #[derive(Debug, Clone, MetricsGroup)]
         #[metrics(name = "my-metrics")]
         struct Metrics {
             /// Counts foos
@@ -388,7 +407,7 @@ combined_bar_count_total 10
         assert_eq!(baz.name, "baz");
         assert_eq!(baz.description, "Measures baz");
 
-        #[derive(Debug, Clone, MetricsGroup, Iterable)]
+        #[derive(Debug, Clone, MetricsGroup)]
         struct FooMetrics {}
         let metrics = FooMetrics::default();
         assert_eq!(metrics.name(), "foo_metrics");

@@ -9,7 +9,57 @@ use syn::{
 #[proc_macro_derive(MetricsGroup, attributes(metrics))]
 pub fn derive_metrics_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    impl_metrics(&input).into()
+    let metrics = impl_metrics(&input);
+    let iterable = impl_iterable(&input);
+    TokenStream::from(quote! {
+        #metrics
+        #iterable
+    })
+}
+
+#[proc_macro_derive(Iterable)]
+pub fn derive_iterable(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    impl_iterable(&input).into()
+}
+
+fn impl_iterable(input: &DeriveInput) -> proc_macro2::TokenStream {
+    let name = &input.ident;
+
+    let syn::Data::Struct(data) = &input.data else {
+        panic!("Only structs are supported.")
+    };
+    let Fields::Named(_fields) = &data.fields else {
+        panic!("Only structs with named fields are supported.")
+    };
+
+    let mut fields_impl = quote! {};
+
+    let mut count = 0usize;
+    for field in &data.fields {
+        let ident = field.ident.as_ref().unwrap();
+        let name = ident.to_string();
+        fields_impl = quote! {
+            #fields_impl
+            #count => Some((#name, &self.#ident as &dyn ::std::any::Any)),
+        };
+        count += 1;
+    }
+
+    quote! {
+        impl Iterable for #name {
+            fn field_count(&self) -> usize {
+                #count
+            }
+
+            fn field(&self, n: usize) -> Option<(&'static str, &dyn ::std::any::Any)> {
+                match n {
+                    #fields_impl
+                    _ => None,
+                }
+            }
+        }
+    }
 }
 
 fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
@@ -28,7 +78,7 @@ fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
         let field_name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
         let doc = parse_doc_comment(&field.attrs)
-            .first()
+            .get(0)
             .cloned()
             .unwrap_or_else(|| field_name.to_string());
         fields_impl = quote! {
@@ -57,7 +107,7 @@ fn impl_metrics(input: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
-fn parse_doc_comment(attrs: &[Attribute]) -> Vec<String> {
+fn parse_doc_comment<'a>(attrs: &'a [Attribute]) -> Vec<String> {
     let mut lines = vec![];
     for attr in attrs {
         if let Meta::NameValue(MetaNameValue { path, value, .. }) = &attr.meta {

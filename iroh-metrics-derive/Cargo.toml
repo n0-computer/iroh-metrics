@@ -10,5 +10,4 @@ proc-macro = true
 heck = "0.5.0"
 proc-macro2 = "1.0.94"
 quote = "1.0.40"
-struct_iterable_derive = "0.1.0"
 syn = "2"
