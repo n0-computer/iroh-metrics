@@ -51,12 +51,7 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
@@ -64,12 +59,7 @@
 </span><span class="kw">mod </span>base;
 <span class="kw">pub use </span>base::<span class="kw-2">*</span>;
 
-<span class="comment">// TODO(frando): remove
-</span><span class="doccomment">/// deprecated
-</span><span class="comment">// pub mod core {
-//     pub use crate::{base::*, metrics::*};
-// }
-</span><span class="kw">mod </span>metrics;
+<span class="kw">mod </span>metrics;
 <span class="kw">pub use </span>metrics::<span class="kw-2">*</span>;
 
 <span class="attr">#[cfg(feature = <span class="string">"static_core"</span>)]
