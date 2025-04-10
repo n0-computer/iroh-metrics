@@ -1,3 +1,6 @@
+[workspace]
+members = ["iroh-metrics-derive"]
+
 [package]
 name = "iroh-metrics"
 version = "0.32.0"
@@ -45,6 +48,9 @@ hyper-util = { version = "0.1.1", features = ["tokio"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 
+# derive feature
+iroh-metrics-derive = { path = "./iroh-metrics-derive", optional = true }
+
 [dev-dependencies]
 tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macros", "time", "test-util"] }
 
@@ -68,6 +74,8 @@ service = [
 ]
 # Enables a global, static metrics collector
 static_core = ["metrics", "dep:erased_set"]
+# Enables the MetricsGroup derive macro
+derive = ["dep:iroh-metrics-derive"]
 
 [package.metadata.docs.rs]
 all-features = true

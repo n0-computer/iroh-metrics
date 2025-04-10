@@ -5,6 +5,8 @@
 /// Exposes core types and traits
 mod base;
 pub use base::*;
+#[cfg(feature = "derive")]
+pub use iroh_metrics_derive::MetricsGroup;
 
 mod metrics;
 pub use metrics::*;

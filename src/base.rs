@@ -348,4 +348,49 @@ combined_bar_count_total 10
 
         assert_eq!(enc, exp);
     }
+
+    #[cfg(feature = "derive")]
+    #[test]
+    fn test_derive() {
+        use crate::{struct_iterable::Iterable, MetricValue, MetricsGroup};
+
+        #[derive(Debug, Clone, MetricsGroup, Iterable)]
+        #[metrics(name = "my-metrics")]
+        struct Metrics {
+            /// Counts foos
+            ///
+            /// Only the first line is used for the OpenMetrics description
+            foo: Counter,
+            // no description: use field name as description
+            bar: Counter,
+            /// Measures baz
+            baz: Gauge,
+        }
+
+        let metrics = Metrics::default();
+
+        metrics.foo.inc();
+        metrics.bar.inc_by(2);
+        metrics.baz.set(3);
+
+        let values: Vec<_> = metrics.values().collect();
+        let foo = values[0];
+        let bar = values[1];
+        let baz = values[2];
+        assert_eq!(metrics.name(), "my-metrics");
+        assert_eq!(foo.value, MetricValue::Counter(1));
+        assert_eq!(foo.name, "foo");
+        assert_eq!(foo.description, "Counts foos");
+        assert_eq!(bar.value, MetricValue::Counter(2));
+        assert_eq!(bar.name, "bar");
+        assert_eq!(bar.description, "bar");
+        assert_eq!(baz.value, MetricValue::Gauge(3));
+        assert_eq!(baz.name, "baz");
+        assert_eq!(baz.description, "Measures baz");
+
+        #[derive(Debug, Clone, MetricsGroup, Iterable)]
+        struct FooMetrics {}
+        let metrics = FooMetrics::default();
+        assert_eq!(metrics.name(), "foo_metrics");
+    }
 }
