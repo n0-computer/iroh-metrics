@@ -18,11 +18,13 @@ pub trait MetricsGroup:
         use crate::{Counter, Gauge};
         let sub_registry = registry.sub_registry_with_prefix(self.name());
         for item in self.iter() {
+            // Remove trailing dot, becausse `Registry::register` adds it automatically.
+            let help = item.help().trim_end_matches('.');
             if let Some(counter) = item.as_any().downcast_ref::<Counter>() {
-                sub_registry.register(item.name(), item.description(), counter.counter.clone());
+                sub_registry.register(item.name(), help, counter.counter.clone());
             }
             if let Some(gauge) = item.as_any().downcast_ref::<Gauge>() {
-                sub_registry.register(item.name(), item.description(), gauge.gauge.clone());
+                sub_registry.register(item.name(), help, gauge.gauge.clone());
             }
         }
     }
@@ -30,7 +32,7 @@ pub trait MetricsGroup:
     /// Returns the name of this metrics group.
     fn name(&self) -> &'static str;
 
-    /// Returns an iterator over all metric items with their values and descriptions.
+    /// Returns an iterator over all metric items with their values and helps.
     fn iter(&self) -> MetricsIter {
         MetricsIter {
             inner: self.field_iter(),
@@ -185,15 +187,15 @@ mod tests {
     }
 
     #[test]
-    fn test_metric_description() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_metric_help() -> Result<(), Box<dyn std::error::Error>> {
         let metrics = FooMetrics::default();
         let items: Vec<_> = metrics.iter().collect();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].name(), "metric_a");
-        assert_eq!(items[0].description(), "metric_a");
+        assert_eq!(items[0].help(), "metric_a");
         assert_eq!(items[0].r#type(), MetricType::Counter);
         assert_eq!(items[1].name(), "metric_b");
-        assert_eq!(items[1].description(), "metric_b");
+        assert_eq!(items[1].help(), "metric_b");
         assert_eq!(items[1].r#type(), MetricType::Counter);
 
         Ok(())
@@ -245,14 +247,9 @@ foo_metric_b_total 2
         metrics.bar.count.inc_by(10);
 
         // Using `iter` to iterate over all metrics in the group set.
-        let collected = metrics.iter().map(|(group, metric)| {
-            (
-                group,
-                metric.name(),
-                metric.description(),
-                metric.value().to_f32(),
-            )
-        });
+        let collected = metrics
+            .iter()
+            .map(|(group, metric)| (group, metric.name(), metric.help(), metric.value().to_f32()));
         assert_eq!(
             collected.collect::<Vec<_>>(),
             vec![
@@ -310,12 +307,12 @@ combined_bar_count_total 10
         struct Metrics {
             /// Counts foos
             ///
-            /// Only the first line is used for the OpenMetrics description
+            /// Only the first line is used for the OpenMetrics help
             foo: Counter,
-            // no description: use field name as description
+            // no help: use field name as help
             bar: Counter,
-            /// This docstring is not used as prometheus description
-            #[metrics(description = "Measures baz")]
+            /// This docstring is not used as prometheus help
+            #[metrics(help = "Measures baz")]
             baz: Gauge,
         }
 
@@ -332,13 +329,13 @@ combined_bar_count_total 10
         let baz = values.next().unwrap();
         assert_eq!(foo.value(), MetricValue::Counter(1));
         assert_eq!(foo.name(), "foo");
-        assert_eq!(foo.description(), "Counts foos");
+        assert_eq!(foo.help(), "Counts foos");
         assert_eq!(bar.value(), MetricValue::Counter(2));
         assert_eq!(bar.name(), "bar");
-        assert_eq!(bar.description(), "bar");
+        assert_eq!(bar.help(), "bar");
         assert_eq!(baz.value(), MetricValue::Gauge(3));
         assert_eq!(baz.name(), "baz");
-        assert_eq!(baz.description(), "Measures baz");
+        assert_eq!(baz.help(), "Measures baz");
 
         #[derive(Debug, Clone, MetricsGroup)]
         struct FooMetrics {}

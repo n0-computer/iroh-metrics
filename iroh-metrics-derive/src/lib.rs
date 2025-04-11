@@ -60,13 +60,13 @@ fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error
         let field_name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
         let attr = parse_metrics_attr(&field.attrs)?;
-        let description = attr
-            .description
+        let help = attr
+            .help
             .or_else(|| parse_doc_first_line(&field.attrs))
             .unwrap_or_else(|| field_name.to_string());
 
         field_defaults.extend(quote! {
-            #field_name: #ty::new(#description),
+            #field_name: #ty::new(#help),
         });
     }
 
@@ -109,7 +109,7 @@ fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
 #[derive(Default)]
 struct MetricsAttr {
     name: Option<String>,
-    description: Option<String>,
+    help: Option<String>,
 }
 
 fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
@@ -119,12 +119,12 @@ fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
             if meta.path.is_ident("name") {
                 out.name = Some(parse_lit_str(&meta)?);
                 Ok(())
-            } else if meta.path.is_ident("description") {
-                out.description = Some(parse_lit_str(&meta)?);
+            } else if meta.path.is_ident("help") {
+                out.help = Some(parse_lit_str(&meta)?);
                 Ok(())
             } else {
                 Err(meta.error(
-                    "The `metrics` attribute supports only `name` and `description` fields.",
+                    "The `metrics` attribute supports only `name` and `help` fields.",
                 ))
             }
         })?;

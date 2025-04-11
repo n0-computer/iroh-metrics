@@ -46,8 +46,8 @@ pub trait Metric: std::fmt::Debug {
     /// The current value of this metric.
     fn value(&self) -> MetricValue;
 
-    /// The description of this metric.
-    fn description(&self) -> &'static str;
+    /// The help string for this metric.
+    fn help(&self) -> &'static str;
 
     /// Cast this metric to [`Any`] for downcasting to concrete types.
     fn as_any(&self) -> &dyn Any;
@@ -62,7 +62,7 @@ pub struct Counter {
     #[cfg(feature = "metrics")]
     pub(crate) counter: prometheus_client::metrics::counter::Counter,
     /// What this counter measures.
-    description: &'static str,
+    help: &'static str,
 }
 
 impl Metric for Counter {
@@ -74,8 +74,8 @@ impl Metric for Counter {
         MetricType::Counter
     }
 
-    fn description(&self) -> &'static str {
-        self.description
+    fn help(&self) -> &'static str {
+        self.help
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -84,12 +84,12 @@ impl Metric for Counter {
 }
 
 impl Counter {
-    /// Constructs a new counter, based on the given `description`.
-    pub fn new(description: &'static str) -> Self {
+    /// Constructs a new counter, based on the given `help`.
+    pub fn new(help: &'static str) -> Self {
         Counter {
             #[cfg(feature = "metrics")]
             counter: Default::default(),
-            description,
+            help,
         }
     }
 
@@ -150,7 +150,7 @@ pub struct Gauge {
     #[cfg(feature = "metrics")]
     pub(crate) gauge: prometheus_client::metrics::gauge::Gauge,
     /// What this gauge tracks.
-    description: &'static str,
+    help: &'static str,
 }
 
 impl Metric for Gauge {
@@ -158,8 +158,8 @@ impl Metric for Gauge {
         MetricType::Gauge
     }
 
-    fn description(&self) -> &'static str {
-        self.description
+    fn help(&self) -> &'static str {
+        self.help
     }
 
     fn value(&self) -> MetricValue {
@@ -172,12 +172,12 @@ impl Metric for Gauge {
 }
 
 impl Gauge {
-    /// Constructs a new gauge, based on the given `description`.
-    pub fn new(description: &'static str) -> Self {
+    /// Constructs a new gauge, based on the given `help`.
+    pub fn new(help: &'static str) -> Self {
         Self {
             #[cfg(feature = "metrics")]
             gauge: Default::default(),
-            description,
+            help,
         }
     }
 
