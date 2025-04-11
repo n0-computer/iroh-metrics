@@ -435,18 +435,18 @@
     ///
     /// The iterator yields tuples of `(&amp;str, MetricItem)`. The `&amp;str` is the group name.
     </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, MetricItem&lt;<span class="lifetime">'_</span>&gt;)&gt; {
-        <span class="self">self</span>.iter_groups()
+        <span class="self">self</span>.groups()
             .flat_map(|group| group.iter().map(|item| (group.name(), item)))
     }
 
     <span class="doccomment">/// Returns an iterator over the [`MetricsGroup`] in this struct.
-    </span><span class="kw">fn </span>iter_groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt;;
+    </span><span class="kw">fn </span>groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt;;
 
     <span class="doccomment">/// Register all metrics groups in this set onto a prometheus client registry.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>register(<span class="kw-2">&amp;</span><span class="self">self</span>, registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) {
-        <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter_groups() {
-            metric.register(registry)
+        <span class="kw">for </span>group <span class="kw">in </span><span class="self">self</span>.groups() {
+            group.register(registry)
         }
     }
 }
@@ -522,7 +522,7 @@
             <span class="string">"combined"
         </span>}
 
-        <span class="kw">fn </span>iter_groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt; {
+        <span class="kw">fn </span>groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt; {
             [
                 <span class="kw-2">&amp;</span><span class="self">self</span>.foo <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.bar <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
@@ -591,7 +591,7 @@ foo_metric_b_total 2
         metrics.foo.metric_a.inc();
         metrics.bar.count.inc_by(<span class="number">10</span>);
 
-        <span class="comment">// Using `iter_all` to iterate over all metrics in the group set.
+        <span class="comment">// Using `iter` to iterate over all metrics in the group set.
         </span><span class="kw">let </span>collected = metrics.iter().map(|(group, metric)| {
             (
                 group,
@@ -611,19 +611,19 @@ foo_metric_b_total 2
 
         <span class="comment">// Using manual downcasting.
         </span><span class="kw">let </span><span class="kw-2">mut </span>collected = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>group <span class="kw">in </span>metrics.iter_groups() {
-            <span class="kw">for </span>(name, metric) <span class="kw">in </span>group.field_iter() {
+        <span class="kw">for </span>group <span class="kw">in </span>metrics.groups() {
+            <span class="kw">for </span>metric <span class="kw">in </span>group.iter() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = metric.as_any().downcast_ref::&lt;Counter&gt;() {
-                    collected.push((group.name(), name, counter.description(), counter.get()));
+                    collected.push((group.name(), metric.name(), counter.get()));
                 }
             }
         }
         <span class="macro">assert_eq!</span>(
             collected,
             <span class="macro">vec!</span>[
-                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="string">"metric_a"</span>, <span class="number">1</span>),
-                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="string">"metric_b"</span>, <span class="number">0</span>),
-                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="string">"Bar Count"</span>, <span class="number">10</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="number">1</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="number">0</span>),
+                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="number">10</span>),
             ]
         );
 
