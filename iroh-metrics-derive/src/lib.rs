@@ -2,11 +2,11 @@ use heck::ToSnakeCase;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    parse_macro_input, spanned::Spanned, Attribute, Data, DeriveInput, Error, Expr, ExprLit,
-    Fields, Ident, Lit, LitStr,
+    meta::ParseNestedMeta, parse_macro_input, spanned::Spanned, Attribute, Data, DeriveInput,
+    Error, Expr, ExprLit, Fields, Ident, Lit, LitStr,
 };
 
-#[proc_macro_derive(MetricsGroup, attributes(metrics_group))]
+#[proc_macro_derive(MetricsGroup, attributes(metrics))]
 pub fn derive_metrics_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let mut out = proc_macro2::TokenStream::new();
@@ -59,16 +59,21 @@ fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error
     for field in fields {
         let field_name = field.ident.as_ref().unwrap();
         let ty = &field.ty;
-        let description = parse_doc_first_line(&field.attrs);
-        let description = description.unwrap_or_else(|| field_name.to_string());
+        let attr = parse_metrics_attr(&field.attrs)?;
+        let description = attr
+            .description
+            .or_else(|| parse_doc_first_line(&field.attrs))
+            .unwrap_or_else(|| field_name.to_string());
 
         field_defaults.extend(quote! {
             #field_name: #ty::new(#description),
         });
     }
 
-    let name_str = parse_metrics_name(&input.attrs)?;
-    let name_str = name_str.unwrap_or_else(|| name.to_string().to_snake_case());
+    let attr = parse_metrics_attr(&input.attrs)?;
+    let name_str = attr
+        .name
+        .unwrap_or_else(|| name.to_string().to_snake_case());
 
     Ok(quote! {
         impl ::std::default::Default for #name {
@@ -101,24 +106,35 @@ fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
         })
 }
 
-fn parse_metrics_name(attrs: &[Attribute]) -> Result<Option<String>, syn::Error> {
-    let mut out = None;
-    for attr in attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("metrics_group"))
-    {
+#[derive(Default)]
+struct MetricsAttr {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
+    let mut out = MetricsAttr::default();
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("metrics")) {
         attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("name") {
-                let s: LitStr = meta.value()?.parse()?;
-                out = Some(s.value().trim().to_string());
+                out.name = Some(parse_lit_str(&meta)?);
+                Ok(())
+            } else if meta.path.is_ident("description") {
+                out.description = Some(parse_lit_str(&meta)?);
                 Ok(())
             } else {
-                Err(meta
-                    .error("The `metrics_group` attribute supports only a single `name` value. "))
+                Err(meta.error(
+                    "The `metrics` attribute supports only `name` and `description` fields.",
+                ))
             }
         })?;
     }
     Ok(out)
+}
+
+fn parse_lit_str(meta: &ParseNestedMeta<'_>) -> Result<String, Error> {
+    let s: LitStr = meta.value()?.parse()?;
+    Ok(s.value().trim().to_string())
 }
 
 fn parse_named_struct(input: &DeriveInput) -> Result<(&Ident, &Fields), Error> {

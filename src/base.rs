@@ -306,7 +306,7 @@ combined_bar_count_total 10
         use crate::{MetricValue, MetricsGroup};
 
         #[derive(Debug, Clone, MetricsGroup)]
-        #[metrics_group(name = "my-metrics")]
+        #[metrics(name = "my-metrics")]
         struct Metrics {
             /// Counts foos
             ///
@@ -314,7 +314,8 @@ combined_bar_count_total 10
             foo: Counter,
             // no description: use field name as description
             bar: Counter,
-            /// Measures baz
+            /// This docstring is not used as prometheus description
+            #[metrics(description = "Measures baz")]
             baz: Gauge,
         }
 

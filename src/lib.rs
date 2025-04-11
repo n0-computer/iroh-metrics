@@ -24,11 +24,13 @@ pub mod service;
 /// It will generate a [`Default`] impl which expects all fields to be of a type
 /// that has a public `new` method taking a single `&'static str` argument.
 /// The [`Default::default`] method will call each field's `new` method with the
-/// first line of the field's doc comment as argument.
+/// first line of the field's doc comment as argument. Alternatively, you can override
+/// the value passed to `new` by setting a `#[metrics(description = "my description")]`
+/// attribute on the field.
 ///
 /// It will also generate a [`MetricsGroup`] impl. By default, the struct's name,
 /// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
-/// method. The name can be customized by setting a `#[metrics_group(name = "my-name")]` attribute.
+/// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
 ///
 /// It will also generate a [`Iterable`] impl.
 ///
