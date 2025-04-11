@@ -347,7 +347,8 @@
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::any::Any;
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::any::Any;
 
 <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
 </span><span class="kw">pub use </span>prometheus_client::registry::Registry;
@@ -655,7 +656,7 @@ combined_bar_count_total 10
         <span class="kw">use crate</span>::{MetricValue, MetricsGroup};
 
         <span class="attr">#[derive(Debug, Clone, MetricsGroup)]
-        #[metrics_group(name = <span class="string">"my-metrics"</span>)]
+        #[metrics(name = <span class="string">"my-metrics"</span>)]
         </span><span class="kw">struct </span>Metrics {
             <span class="doccomment">/// Counts foos
             ///
@@ -663,7 +664,8 @@ combined_bar_count_total 10
             </span>foo: Counter,
             <span class="comment">// no description: use field name as description
             </span>bar: Counter,
-            <span class="doccomment">/// Measures baz
+            <span class="doccomment">/// This docstring is not used as prometheus description
+            </span><span class="attr">#[metrics(description = <span class="string">"Measures baz"</span>)]
             </span>baz: Gauge,
         }
 

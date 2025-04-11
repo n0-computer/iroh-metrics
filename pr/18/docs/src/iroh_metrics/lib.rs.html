@@ -73,7 +73,9 @@
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
@@ -99,11 +101,13 @@
 /// It will generate a [`Default`] impl which expects all fields to be of a type
 /// that has a public `new` method taking a single `&amp;'static str` argument.
 /// The [`Default::default`] method will call each field's `new` method with the
-/// first line of the field's doc comment as argument.
+/// first line of the field's doc comment as argument. Alternatively, you can override
+/// the value passed to `new` by setting a `#[metrics(description = "my description")]`
+/// attribute on the field.
 ///
 /// It will also generate a [`MetricsGroup`] impl. By default, the struct's name,
 /// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
-/// method. The name can be customized by setting a `#[metrics_group(name = "my-name")]` attribute.
+/// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
 ///
 /// It will also generate a [`Iterable`] impl.
 ///
