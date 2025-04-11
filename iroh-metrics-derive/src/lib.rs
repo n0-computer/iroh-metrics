@@ -32,7 +32,7 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
         let ident = field.ident.as_ref().unwrap();
         let ident_str = ident.to_string();
         match_arms.extend(quote! {
-            #i => Some((#ident_str, &self.#ident as &dyn ::std::any::Any)),
+            #i => Some((#ident_str, &self.#ident as &dyn ::iroh_metrics::Metric)),
         });
     }
 
@@ -42,7 +42,7 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
                 #count
             }
 
-            fn field(&self, n: usize) -> Option<(&'static str, &dyn ::std::any::Any)> {
+            fn field_ref(&self, n: usize) -> Option<(&'static str, &dyn ::iroh_metrics::Metric)> {
                 match n {
                     #match_arms
                     _ => None,

@@ -7,19 +7,14 @@ use std::fmt;
 /// [`Iterable`]: ::iroh_metrics::Iterable
 pub use iroh_metrics_derive::Iterable;
 
+use crate::Metric;
+
 /// Trait for iterating over the fields of a struct.
 pub trait Iterable {
     /// Returns the number of fields in the struct.
     fn field_count(&self) -> usize;
     /// Returns the field name and dyn reference to the field.
-    fn field(&self, n: usize) -> Option<(&'static str, &dyn std::any::Any)>;
-}
-
-impl dyn Iterable {
-    /// Returns an iterator over the fields of the struct.
-    pub fn iter(&self) -> FieldIter<'_> {
-        FieldIter::new(self)
-    }
+    fn field_ref(&self, n: usize) -> Option<(&'static str, &dyn Metric)>;
 }
 
 /// Helper trait to convert from `self` to `dyn Iterable`.
@@ -28,7 +23,7 @@ pub trait IntoIterable {
     fn as_iterable(&self) -> &dyn Iterable;
 
     /// Returns an iterator over the fields of the struct.
-    fn iter(&self) -> FieldIter<'_> {
+    fn field_iter(&self) -> FieldIter<'_> {
         FieldIter::new(self.as_iterable())
     }
 }
@@ -44,7 +39,7 @@ where
 
 /// Iterator over the fields of a struct.
 ///
-/// Returned from [`IntoIterable::iter`].
+/// Returned from [`IntoIterable::field_iter`].
 pub struct FieldIter<'a> {
     pos: usize,
     inner: &'a dyn Iterable,
@@ -62,13 +57,13 @@ impl<'a> FieldIter<'a> {
     }
 }
 impl<'a> Iterator for FieldIter<'a> {
-    type Item = (&'static str, &'a dyn std::any::Any);
+    type Item = (&'static str, &'a dyn Metric);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.inner.field_count() {
             None
         } else {
-            let out = self.inner.field(self.pos);
+            let out = self.inner.field_ref(self.pos);
             self.pos += 1;
             out
         }

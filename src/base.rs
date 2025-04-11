@@ -5,7 +5,7 @@ pub use prometheus_client::registry::Registry;
 
 use crate::{
     iterable::{FieldIter, IntoIterable, Iterable},
-    Counter, Gauge, MetricType,
+    Counter, Gauge, Metric,
 };
 
 /// Trait for structs containing metric items.
@@ -16,13 +16,12 @@ pub trait MetricsGroup:
     #[cfg(feature = "metrics")]
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
         let sub_registry = registry.sub_registry_with_prefix(self.name());
-
-        for (metric, item) in self.iter() {
-            if let Some(counter) = item.downcast_ref::<Counter>() {
-                sub_registry.register(metric, counter.description, counter.counter.clone());
+        for item in self.iter() {
+            if let Some(counter) = item.as_any().downcast_ref::<Counter>() {
+                sub_registry.register(item.name(), item.description(), counter.counter.clone());
             }
-            if let Some(gauge) = item.downcast_ref::<Gauge>() {
-                sub_registry.register(metric, gauge.description, gauge.gauge.clone());
+            if let Some(gauge) = item.as_any().downcast_ref::<Gauge>() {
+                sub_registry.register(item.name(), item.description(), gauge.gauge.clone());
             }
         }
     }
@@ -30,84 +29,27 @@ pub trait MetricsGroup:
     /// Returns the name of this metrics group.
     fn name(&self) -> &'static str;
 
-    /// Returns an iterator over all metric items with their descriptions.
-    fn describe(&self) -> DecribeIter {
-        DecribeIter { inner: self.iter() }
-    }
-
     /// Returns an iterator over all metric items with their values and descriptions.
-    fn values(&self) -> ValuesIter {
-        ValuesIter { inner: self.iter() }
+    fn iter(&self) -> MetricsIter {
+        MetricsIter {
+            inner: self.field_iter(),
+        }
     }
 }
 
-/// Iterator over metric descriptions.
+/// Iterator over metric items.
 ///
-/// Returned from [`MetricsGroup::describe`].
+/// Returned from [`MetricsGroup::iter`].
 #[derive(Debug)]
-pub struct DecribeIter<'a> {
+pub struct MetricsIter<'a> {
     inner: FieldIter<'a>,
 }
 
-impl Iterator for DecribeIter<'_> {
-    type Item = MetricDescription;
+impl<'a> Iterator for MetricsIter<'a> {
+    type Item = MetricItem<'a>;
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (name, item) = self.inner.next()?;
-            if let Some(item) = item.downcast_ref::<Counter>() {
-                break Some(MetricDescription {
-                    name,
-                    r#type: MetricType::Counter,
-                    description: item.description,
-                });
-            } else if let Some(item) = item.downcast_ref::<Gauge>() {
-                break Some(MetricDescription {
-                    name,
-                    r#type: MetricType::Gauge,
-                    description: item.description,
-                });
-            } else {
-                continue;
-            }
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-
-/// Iterator over metric items with their values.
-///
-/// Returned from [`MetricsGroup::values`].
-#[derive(Debug)]
-pub struct ValuesIter<'a> {
-    inner: FieldIter<'a>,
-}
-
-impl Iterator for ValuesIter<'_> {
-    type Item = MetricItem;
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let (name, item) = self.inner.next()?;
-            if let Some(item) = item.downcast_ref::<Counter>() {
-                break Some(MetricItem {
-                    name,
-                    r#type: MetricType::Counter,
-                    description: item.description,
-                    value: MetricValue::Counter(item.get()),
-                });
-            } else if let Some(item) = item.downcast_ref::<Gauge>() {
-                break Some(MetricItem {
-                    name,
-                    r#type: MetricType::Gauge,
-                    description: item.description,
-                    value: MetricValue::Gauge(item.get()),
-                });
-            } else {
-                continue;
-            }
-        }
+        let (name, metric) = self.inner.next()?;
+        Some(MetricItem { name, metric })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -116,78 +58,49 @@ impl Iterator for ValuesIter<'_> {
 }
 
 /// A metric item with its current value.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct MetricItem {
-    /// The type of this metric item.
-    pub r#type: MetricType,
-    /// The name of this metric item.
-    pub name: &'static str,
-    /// The description of this metric item.
-    pub description: &'static str,
-    /// The current value.
-    pub value: MetricValue,
+#[derive(Debug, Clone, Copy)]
+pub struct MetricItem<'a> {
+    name: &'static str,
+    metric: &'a dyn Metric,
 }
 
-/// The value of an individual metric item.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum MetricValue {
-    /// A [`Counter`] value.
-    Counter(u64),
-    /// A [`Gauge`] value.
-    Gauge(i64),
-}
-
-impl MetricValue {
-    /// Returns the value as [`f32`].
-    pub fn to_f32(&self) -> f32 {
-        match self {
-            MetricValue::Counter(value) => *value as f32,
-            MetricValue::Gauge(value) => *value as f32,
-        }
+impl MetricItem<'_> {
+    /// Returns the name of this metric item.
+    pub fn name(&self) -> &'static str {
+        self.name
     }
 }
 
-/// Extension methods for types implementing [`MetricsGroup`].
-///
-/// This contains non-dyn-compatible methods, which is why they can't live on the [`MetricsGroup`] trait.
-pub trait MetricsGroupExt: MetricsGroup + Default {
-    /// Create a new instance and register with a registry.
-    #[cfg(feature = "metrics")]
-    fn new(registry: &mut prometheus_client::registry::Registry) -> Self {
-        let m = Self::default();
-        m.register(registry);
-        m
+impl<'a> std::ops::Deref for MetricItem<'a> {
+    type Target = &'a dyn Metric;
+    fn deref(&self) -> &Self::Target {
+        &self.metric
     }
 }
-
-impl<T> MetricsGroupExt for T where T: MetricsGroup + Default {}
 
 /// Trait for a set of structs implementing [`MetricsGroup`].
 pub trait MetricsGroupSet {
-    /// Returns an iterator of references to structs implementing [`MetricsGroup`].
-    fn iter(&self) -> impl Iterator<Item = &dyn MetricsGroup>;
-
     /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
+
+    /// Returns an iterator over all metrics in this metrics group set.
+    ///
+    /// The iterator yields tuples of `(&str, MetricItem)`. The `&str` is the group name.
+    fn iter(&self) -> impl Iterator<Item = (&'static str, MetricItem<'_>)> {
+        self.groups()
+            .flat_map(|group| group.iter().map(|item| (group.name(), item)))
+    }
+
+    /// Returns an iterator over the [`MetricsGroup`] in this struct.
+    fn groups(&self) -> impl Iterator<Item = &dyn MetricsGroup>;
 
     /// Register all metrics groups in this set onto a prometheus client registry.
     #[cfg(feature = "metrics")]
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
-        for metric in self.iter() {
-            metric.register(registry)
+        for group in self.groups() {
+            group.register(registry)
         }
     }
-}
-
-/// Returns the metric item representation.
-#[derive(Debug, Clone)]
-pub struct MetricDescription {
-    /// The name of the metric.
-    pub name: &'static str,
-    /// The description of the metric.
-    pub description: &'static str,
-    /// The type of the metric.
-    pub r#type: MetricType,
 }
 
 /// Ensure metrics can be used without `metrics` feature.
@@ -208,7 +121,7 @@ mod tests {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::iterable::Iterable;
+    use crate::{iterable::Iterable, MetricType};
 
     #[derive(Debug, Clone, Iterable)]
     pub struct FooMetrics {
@@ -261,7 +174,7 @@ mod tests {
             "combined"
         }
 
-        fn iter(&self) -> impl Iterator<Item = &dyn MetricsGroup> {
+        fn groups(&self) -> impl Iterator<Item = &dyn MetricsGroup> {
             [
                 &self.foo as &dyn MetricsGroup,
                 &self.bar as &dyn MetricsGroup,
@@ -273,14 +186,14 @@ mod tests {
     #[test]
     fn test_metric_description() -> Result<(), Box<dyn std::error::Error>> {
         let metrics = FooMetrics::default();
-        let items: Vec<_> = metrics.describe().collect();
+        let items: Vec<_> = metrics.iter().collect();
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0].name, "metric_a");
-        assert_eq!(items[0].description, "metric_a");
-        assert_eq!(items[0].r#type, MetricType::Counter);
-        assert_eq!(items[1].name, "metric_b");
-        assert_eq!(items[1].description, "metric_b");
-        assert_eq!(items[1].r#type, MetricType::Counter);
+        assert_eq!(items[0].name(), "metric_a");
+        assert_eq!(items[0].description(), "metric_a");
+        assert_eq!(items[0].r#type(), MetricType::Counter);
+        assert_eq!(items[1].name(), "metric_b");
+        assert_eq!(items[1].description(), "metric_b");
+        assert_eq!(items[1].r#type(), MetricType::Counter);
 
         Ok(())
     }
@@ -330,21 +243,39 @@ foo_metric_b_total 2
         metrics.foo.metric_a.inc();
         metrics.bar.count.inc_by(10);
 
+        // Using `iter` to iterate over all metrics in the group set.
+        let collected = metrics.iter().map(|(group, metric)| {
+            (
+                group,
+                metric.name(),
+                metric.description(),
+                metric.value().to_f32(),
+            )
+        });
+        assert_eq!(
+            collected.collect::<Vec<_>>(),
+            vec![
+                ("foo", "metric_a", "metric_a", 1.0),
+                ("foo", "metric_b", "metric_b", 0.0),
+                ("bar", "count", "Bar Count", 10.0),
+            ]
+        );
+
+        // Using manual downcasting.
         let mut collected = vec![];
-        // manual collection and iteration with manual downcasting
-        for group in metrics.iter() {
-            for (name, metric) in group.iter() {
-                if let Some(counter) = metric.downcast_ref::<Counter>() {
-                    collected.push((group.name(), name, counter.description, counter.get()));
+        for group in metrics.groups() {
+            for metric in group.iter() {
+                if let Some(counter) = metric.as_any().downcast_ref::<Counter>() {
+                    collected.push((group.name(), metric.name(), counter.get()));
                 }
             }
         }
         assert_eq!(
             collected,
             vec![
-                ("foo", "metric_a", "metric_a", 1),
-                ("foo", "metric_b", "metric_b", 0),
-                ("bar", "count", "Bar Count", 10),
+                ("foo", "metric_a", 1),
+                ("foo", "metric_b", 0),
+                ("bar", "count", 10),
             ]
         );
 
@@ -393,25 +324,25 @@ combined_bar_count_total 10
         metrics.bar.inc_by(2);
         metrics.baz.set(3);
 
-        let mut values = metrics.values();
+        let mut values = metrics.iter();
         let foo = values.next().unwrap();
         let bar = values.next().unwrap();
         let baz = values.next().unwrap();
-        assert_eq!(foo.value, MetricValue::Counter(1));
-        assert_eq!(foo.name, "foo");
-        assert_eq!(foo.description, "Counts foos");
-        assert_eq!(bar.value, MetricValue::Counter(2));
-        assert_eq!(bar.name, "bar");
-        assert_eq!(bar.description, "bar");
-        assert_eq!(baz.value, MetricValue::Gauge(3));
-        assert_eq!(baz.name, "baz");
-        assert_eq!(baz.description, "Measures baz");
+        assert_eq!(foo.value(), MetricValue::Counter(1));
+        assert_eq!(foo.name(), "foo");
+        assert_eq!(foo.description(), "Counts foos");
+        assert_eq!(bar.value(), MetricValue::Counter(2));
+        assert_eq!(bar.name(), "bar");
+        assert_eq!(bar.description(), "bar");
+        assert_eq!(baz.value(), MetricValue::Gauge(3));
+        assert_eq!(baz.name(), "baz");
+        assert_eq!(baz.description(), "Measures baz");
 
         #[derive(Debug, Clone, MetricsGroup)]
         struct FooMetrics {}
         let metrics = FooMetrics::default();
         assert_eq!(metrics.name(), "foo_metrics");
-        let mut values = metrics.values();
-        assert_eq!(values.next(), None);
+        let mut values = metrics.iter();
+        assert!(values.next().is_none());
     }
 }

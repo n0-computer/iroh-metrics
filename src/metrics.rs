@@ -6,13 +6,50 @@
 //! If the `metrics` feature is disabled, all operations defined on these types are noops,
 //! and the structs don't collect actual data.
 
+use std::any::Any;
+
 /// The types of metrics supported by this crate.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum MetricType {
     /// A [`Counter].
     Counter,
     /// A [`Gauge].
     Gauge,
+}
+
+/// The value of an individual metric item.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum MetricValue {
+    /// A [`Counter`] value.
+    Counter(u64),
+    /// A [`Gauge`] value.
+    Gauge(i64),
+}
+
+impl MetricValue {
+    /// Returns the value as [`f32`].
+    pub fn to_f32(&self) -> f32 {
+        match self {
+            MetricValue::Counter(value) => *value as f32,
+            MetricValue::Gauge(value) => *value as f32,
+        }
+    }
+}
+
+/// Trait for metric items.
+pub trait Metric: std::fmt::Debug {
+    /// The type of this metric.
+    fn r#type(&self) -> MetricType;
+
+    /// The current value of this metric.
+    fn value(&self) -> MetricValue;
+
+    /// The description of this metric.
+    fn description(&self) -> &'static str;
+
+    /// Cast this metric to [`Any`] for downcasting to concrete types.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// Open Metrics [`Counter`] to measure discrete events.
@@ -22,9 +59,27 @@ pub enum MetricType {
 pub struct Counter {
     /// The actual prometheus counter.
     #[cfg(feature = "metrics")]
-    pub counter: prometheus_client::metrics::counter::Counter,
+    pub(crate) counter: prometheus_client::metrics::counter::Counter,
     /// What this counter measures.
-    pub description: &'static str,
+    description: &'static str,
+}
+
+impl Metric for Counter {
+    fn value(&self) -> MetricValue {
+        MetricValue::Counter(self.get())
+    }
+
+    fn r#type(&self) -> MetricType {
+        MetricType::Counter
+    }
+
+    fn description(&self) -> &'static str {
+        self.description
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl Counter {
@@ -92,10 +147,29 @@ impl Counter {
 pub struct Gauge {
     /// The actual prometheus gauge.
     #[cfg(feature = "metrics")]
-    pub gauge: prometheus_client::metrics::gauge::Gauge,
+    pub(crate) gauge: prometheus_client::metrics::gauge::Gauge,
     /// What this gauge tracks.
-    pub description: &'static str,
+    description: &'static str,
 }
+
+impl Metric for Gauge {
+    fn r#type(&self) -> MetricType {
+        MetricType::Gauge
+    }
+
+    fn description(&self) -> &'static str {
+        self.description
+    }
+
+    fn value(&self) -> MetricValue {
+        MetricValue::Gauge(self.get())
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 impl Gauge {
     /// Constructs a new gauge, based on the given `description`.
     pub fn new(description: &'static str) -> Self {
