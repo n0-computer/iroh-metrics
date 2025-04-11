@@ -457,7 +457,7 @@
 /// All ops are noops then, get always returns 0.
 </span><span class="attr">#[cfg(all(test, not(feature = <span class="string">"metrics"</span>)))]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">super</span>::Counter;
+    <span class="kw">use </span><span class="kw">crate</span>::Counter;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test() {
