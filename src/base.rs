@@ -5,7 +5,7 @@ pub use prometheus_client::registry::Registry;
 
 use crate::{
     iterable::{FieldIter, IntoIterable, Iterable},
-    Counter, Gauge, Metric,
+    Metric,
 };
 
 /// Trait for structs containing metric items.
@@ -15,6 +15,7 @@ pub trait MetricsGroup:
     /// Registers all metric items in this metrics group to a [`prometheus_client::registry::Registry`].
     #[cfg(feature = "metrics")]
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
+        use crate::{Counter, Gauge};
         let sub_registry = registry.sub_registry_with_prefix(self.name());
         for item in self.iter() {
             if let Some(counter) = item.as_any().downcast_ref::<Counter>() {
@@ -107,7 +108,7 @@ pub trait MetricsGroupSet {
 /// All ops are noops then, get always returns 0.
 #[cfg(all(test, not(feature = "metrics")))]
 mod tests {
-    use super::Counter;
+    use crate::Counter;
 
     #[test]
     fn test() {
@@ -121,7 +122,7 @@ mod tests {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::{iterable::Iterable, MetricType};
+    use crate::{iterable::Iterable, Counter, Gauge, MetricType};
 
     #[derive(Debug, Clone, Iterable)]
     pub struct FooMetrics {
