@@ -20,6 +20,7 @@ pub enum MetricType {
 
 /// The value of an individual metric item.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum MetricValue {
     /// A [`Counter`] value.
     Counter(u64),
