@@ -37,7 +37,7 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
     }
 
     Ok(quote! {
-        impl ::iroh_metrics::Iterable for #name {
+        impl ::iroh_metrics::iterable::Iterable for #name {
             fn field_count(&self) -> usize {
                 #count
             }

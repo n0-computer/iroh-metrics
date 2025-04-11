@@ -4,14 +4,15 @@ use std::any::Any;
 pub use prometheus_client::registry::Registry;
 
 use crate::{
-    metrics::{Counter, Gauge},
-    FieldIter, IntoIterable, Iterable, MetricType,
+    iterable::{FieldIter, IntoIterable, Iterable},
+    Counter, Gauge, MetricType,
 };
-/// Description of a group of metrics.
+
+/// Trait for structs containing metric items.
 pub trait MetricsGroup:
     Any + Iterable + IntoIterable + std::fmt::Debug + 'static + Send + Sync
 {
-    /// Initializes this metric group.
+    /// Registers all metric items in this metrics group to a [`prometheus_client::registry::Registry`].
     #[cfg(feature = "metrics")]
     fn register(&self, registry: &mut prometheus_client::registry::Registry) {
         let sub_registry = registry.sub_registry_with_prefix(self.name());
@@ -26,7 +27,7 @@ pub trait MetricsGroup:
         }
     }
 
-    /// The name of this metric group.
+    /// Returns the name of this metrics group.
     fn name(&self) -> &'static str;
 
     /// Returns an iterator over all metric items with their descriptions.
@@ -34,15 +35,15 @@ pub trait MetricsGroup:
         DecribeIter { inner: self.iter() }
     }
 
-    /// Returns an iterator over all metric items with their values and types.
+    /// Returns an iterator over all metric items with their values and descriptions.
     fn values(&self) -> ValuesIter {
         ValuesIter { inner: self.iter() }
     }
 }
 
-/// Iterator over metric items with their values.
+/// Iterator over metric descriptions.
 ///
-/// Returned from [`MetricsGroup::values`].
+/// Returned from [`MetricsGroup::describe`].
 #[derive(Debug)]
 pub struct DecribeIter<'a> {
     inner: FieldIter<'a>,
@@ -207,7 +208,7 @@ mod tests {
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
     use super::*;
-    use crate::Iterable;
+    use crate::iterable::Iterable;
 
     #[derive(Debug, Clone, Iterable)]
     pub struct FooMetrics {

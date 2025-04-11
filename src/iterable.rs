@@ -1,4 +1,11 @@
+//! Traits for iterating over the fields of structs.
+
 use std::fmt;
+
+/// Derives [`Iterable`] for a struct.
+///
+/// [`Iterable`]: ::iroh_metrics::Iterable
+pub use iroh_metrics_derive::Iterable;
 
 /// Trait for iterating over the fields of a struct.
 pub trait Iterable {

@@ -2,8 +2,6 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-pub use iroh_metrics_derive::{Iterable, MetricsGroup};
-
 /// Exposes core types and traits
 mod base;
 pub use base::*;
@@ -11,8 +9,7 @@ pub use base::*;
 mod metrics;
 pub use metrics::*;
 
-mod iterable;
-pub use iterable::*;
+pub mod iterable;
 
 #[cfg(feature = "static_core")]
 pub mod static_core;
@@ -20,6 +17,27 @@ pub mod static_core;
 #[cfg(feature = "service")]
 pub mod service;
 
+/// Derives [`MetricsGroup`], [`Iterable`] and [`Default`] for a struct.
+///
+/// This derive macro only works on structs with named fields.
+///
+/// It will generate a [`Default`] impl which expects all fields to be of a type
+/// that has a public `new` method taking a single `&'static str` argument.
+/// The [`Default::default`] method will call each field's `new` method with the
+/// first line of the field's doc comment as argument.
+///
+/// It will also generate a [`MetricsGroup`] impl. By default, the struct's name,
+/// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
+/// method. The name can be customized by setting a `#[metrics_group(name = "my-name")]` attribute.
+///
+/// It will also generate a [`Iterable`] impl.
+///
+/// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
+/// [`Iterable`]: ::iroh_metrics::Iterable
+/// [`Default`]: ::std::default::Default
+pub use iroh_metrics_derive::MetricsGroup;
+
+// This lets us use the derive metrics in the lib tests within this crate.
 extern crate self as iroh_metrics;
 
 use std::collections::HashMap;
