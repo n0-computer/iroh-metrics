@@ -73,13 +73,11 @@
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#75" id="75">75</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-</span><span class="doccomment">/// Exposes core types and traits
 </span><span class="kw">mod </span>base;
 <span class="kw">pub use </span>base::<span class="kw-2">*</span>;
 
@@ -111,9 +109,7 @@
 ///
 /// It will also generate a [`Iterable`] impl.
 ///
-/// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
-/// [`Iterable`]: ::iroh_metrics::Iterable
-/// [`Default`]: ::std::default::Default
+/// [`Iterable`]: iterable::Iterable
 </span><span class="kw">pub use </span>iroh_metrics_derive::MetricsGroup;
 
 <span class="comment">// This lets us use the derive metrics in the lib tests within this crate.

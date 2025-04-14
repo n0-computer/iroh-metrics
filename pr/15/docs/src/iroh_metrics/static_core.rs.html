@@ -309,7 +309,7 @@
     }
 }
 
-<span class="doccomment">/// Increments the given counter or gauge by 1.
+<span class="doccomment">/// Increments the given metric by 1.
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> inc {
     (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident) =&gt; {
@@ -319,7 +319,7 @@
     };
 }
 
-<span class="doccomment">/// Increments the given counter or gauge by `n`.
+<span class="doccomment">/// Increments the given metric by `n`.
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> inc_by {
     (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {
@@ -329,7 +329,7 @@
     };
 }
 
-<span class="doccomment">/// Sets the given counter or gauge to `n`.
+<span class="doccomment">/// Sets the given metric to `n`.
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> set {
     (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {
@@ -337,7 +337,7 @@
     };
 }
 
-<span class="doccomment">/// Decrements the given gauge by 1.
+<span class="doccomment">/// Decrements the given metric by 1.
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> dec {
     (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident) =&gt; {
@@ -347,7 +347,7 @@
     };
 }
 
-<span class="doccomment">/// Decrements the given gauge `n`.
+<span class="doccomment">/// Decrements the given metric by `n`.
 </span><span class="attr">#[macro_export]
 </span><span class="macro">macro_rules!</span> dec_by {
     (<span class="macro-nonterminal">$m</span>:ty, <span class="macro-nonterminal">$f</span>:ident, <span class="macro-nonterminal">$n</span>:expr) =&gt; {

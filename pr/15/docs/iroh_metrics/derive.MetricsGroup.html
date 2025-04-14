@@ -3,7 +3,7 @@
     <span class="comment">// Attributes available to this derive:</span>
     #[metrics]
 }
-</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Derives <a href="trait.MetricsGroup.html" title="trait iroh_metrics::MetricsGroup"><code>MetricsGroup</code></a>, <a href="::iroh_metrics::Iterable"><code>Iterable</code></a> and <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default"><code>Default</code></a> for a struct.</p>
+</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Derives <a href="trait.MetricsGroup.html" title="trait iroh_metrics::MetricsGroup"><code>MetricsGroup</code></a>, <a href="iterable/trait.Iterable.html" title="trait iroh_metrics::iterable::Iterable"><code>Iterable</code></a> and <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default"><code>Default</code></a> for a struct.</p>
 <p>This derive macro only works on structs with named fields.</p>
 <p>It will generate a <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default"><code>Default</code></a> impl which expects all fields to be of a type
 that has a public <code>new</code> method taking a single <code>&amp;'static str</code> argument.
@@ -14,5 +14,5 @@ attribute on the field.</p>
 <p>It will also generate a <a href="trait.MetricsGroup.html" title="trait iroh_metrics::MetricsGroup"><code>MetricsGroup</code></a> impl. By default, the struct’s name,
 converted to <code>camel_case</code> will be used as the return value of the <a href="trait.MetricsGroup.html#tymethod.name" title="method iroh_metrics::MetricsGroup::name"><code>MetricsGroup::name</code></a>
 method. The name can be customized by setting a <code>#[metrics(name = "my-name")]</code> attribute.</p>
-<p>It will also generate a <a href="::iroh_metrics::Iterable"><code>Iterable</code></a> impl.</p>
+<p>It will also generate a <a href="iterable/trait.Iterable.html" title="trait iroh_metrics::iterable::Iterable"><code>Iterable</code></a> impl.</p>
 </div></details></section></div></main></body></html>
