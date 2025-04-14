@@ -110,7 +110,10 @@ impl Counter {
             self.counter.inc_by(v)
         }
         #[cfg(not(feature = "metrics"))]
-        0
+        {
+            drop(v);
+            0
+        }
     }
 
     /// Sets the [`Counter`] value, returning the previous value.
@@ -124,7 +127,10 @@ impl Counter {
                 .swap(v, std::sync::atomic::Ordering::Relaxed)
         }
         #[cfg(not(feature = "metrics"))]
-        0
+        {
+            drop(v);
+            0
+        }
     }
 
     /// Returns the current value of the [`Counter`].
@@ -193,7 +199,10 @@ impl Gauge {
             self.gauge.inc_by(v)
         }
         #[cfg(not(feature = "metrics"))]
-        0
+        {
+            drop(v);
+            0
+        }
     }
 
     /// Decreases the [`Gauge`] by 1, returning the previous value.
@@ -213,7 +222,10 @@ impl Gauge {
             self.gauge.dec_by(v)
         }
         #[cfg(not(feature = "metrics"))]
-        0
+        {
+            drop(v);
+            0
+        }
     }
 
     /// Sets the [`Gauge`] to `v`, returning the previous value.
@@ -223,7 +235,10 @@ impl Gauge {
             self.gauge.set(v)
         }
         #[cfg(not(feature = "metrics"))]
-        0
+        {
+            drop(v);
+            0
+        }
     }
 
     /// Returns the [`Gauge`] value.
