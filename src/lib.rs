@@ -1,21 +1,46 @@
 //! Metrics library for iroh
+
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-#[cfg(feature = "service")]
-pub mod metrics;
+mod base;
+pub use base::*;
 
-/// Exposes core types and traits
-pub mod core;
+mod metrics;
+pub use metrics::*;
 
-/// Exposes iroh metrics
+pub mod iterable;
+
+#[cfg(feature = "static_core")]
+pub mod static_core;
+
 #[cfg(feature = "service")]
-mod service;
+pub mod service;
+
+/// Derives [`MetricsGroup`], [`Iterable`] and [`Default`] for a struct.
+///
+/// This derive macro only works on structs with named fields.
+///
+/// It will generate a [`Default`] impl which expects all fields to be of a type
+/// that has a public `new` method taking a single `&'static str` argument.
+/// The [`Default::default`] method will call each field's `new` method with the
+/// first line of the field's doc comment as argument. Alternatively, you can override
+/// the value passed to `new` by setting a `#[metrics(help = "my help")]`
+/// attribute on the field.
+///
+/// It will also generate a [`MetricsGroup`] impl. By default, the struct's name,
+/// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
+/// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
+///
+/// It will also generate a [`Iterable`] impl.
+///
+/// [`Iterable`]: iterable::Iterable
+pub use iroh_metrics_derive::MetricsGroup;
+
+// This lets us use the derive metrics in the lib tests within this crate.
+extern crate self as iroh_metrics;
 
 use std::collections::HashMap;
-
-/// Reexports `struct_iterable` to make matching versions easier.
-pub use struct_iterable;
 
 /// Potential errors from this library.
 #[derive(Debug, thiserror::Error)]
@@ -26,46 +51,6 @@ pub enum Error {
     /// Any IO related error.
     #[error("IO: {0}")]
     Io(#[from] std::io::Error),
-}
-
-/// Increments the given counter or gauge by 1.
-#[macro_export]
-macro_rules! inc {
-    ($m:ty, $f:ident) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc());
-    };
-}
-
-/// Increments the given counter or gauge by `n`.
-#[macro_export]
-macro_rules! inc_by {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.inc_by($n));
-    };
-}
-
-/// Sets the given counter or gauge to `n`.
-#[macro_export]
-macro_rules! set {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.set($n));
-    };
-}
-
-/// Decrements the given gauge by 1.
-#[macro_export]
-macro_rules! dec {
-    ($m:ty, $f:ident) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec());
-    };
-}
-
-/// Decrements the given gauge `n`.
-#[macro_export]
-macro_rules! dec_by {
-    ($m:ty, $f:ident, $n:expr) => {
-        <$m as $crate::core::Metric>::with_metric(|m| m.$f.dec_by($n));
-    };
 }
 
 /// Parses Prometheus metrics from a string.
@@ -87,34 +72,4 @@ pub fn parse_prometheus_metrics(data: &str) -> HashMap<String, f64> {
         metrics.insert(metric.to_string(), value.unwrap());
     }
     metrics
-}
-
-/// Configuration for pushing metrics to a remote endpoint.
-#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
-pub struct PushMetricsConfig {
-    /// The push interval in seconds.
-    pub interval: u64,
-    /// The endpoint url for the push metrics collector.
-    pub endpoint: String,
-    /// The name of the service you're exporting metrics for.
-    ///
-    /// Generally, `metrics_exporter` is good enough for use
-    /// outside of production deployments.
-    pub service_name: String,
-    /// The name of the instance you're exporting metrics for.
-    ///
-    /// This should be device-unique. If not, this will sum up
-    /// metrics from different devices.
-    ///
-    /// E.g. `username-laptop`, `username-phone`, etc.
-    ///
-    /// Another potential scheme with good privacy would be a
-    /// keyed blake3 hash of the secret key. (This gives you
-    /// an identifier that is as unique as a `NodeID`, but
-    /// can't be correlated to `NodeID`s.)
-    pub instance_name: String,
-    /// The username for basic auth for the push metrics collector.
-    pub username: Option<String>,
-    /// The password for basic auth for the push metrics collector.
-    pub password: String,
 }
