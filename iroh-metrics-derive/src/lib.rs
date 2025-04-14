@@ -123,9 +123,7 @@ fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
                 out.help = Some(parse_lit_str(&meta)?);
                 Ok(())
             } else {
-                Err(meta.error(
-                    "The `metrics` attribute supports only `name` and `help` fields.",
-                ))
+                Err(meta.error("The `metrics` attribute supports only `name` and `help` fields."))
             }
         })?;
     }
