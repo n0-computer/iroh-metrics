@@ -1,8 +1,8 @@
 //! Metrics library for iroh
+
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-/// Exposes core types and traits
 mod base;
 pub use base::*;
 
@@ -34,9 +34,7 @@ pub mod service;
 ///
 /// It will also generate a [`Iterable`] impl.
 ///
-/// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
-/// [`Iterable`]: ::iroh_metrics::Iterable
-/// [`Default`]: ::std::default::Default
+/// [`Iterable`]: iterable::Iterable
 pub use iroh_metrics_derive::MetricsGroup;
 
 // This lets us use the derive metrics in the lib tests within this crate.

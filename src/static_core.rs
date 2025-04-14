@@ -130,7 +130,7 @@ impl Core {
     }
 }
 
-/// Increments the given counter or gauge by 1.
+/// Increments the given metric by 1.
 #[macro_export]
 macro_rules! inc {
     ($m:ty, $f:ident) => {
@@ -140,7 +140,7 @@ macro_rules! inc {
     };
 }
 
-/// Increments the given counter or gauge by `n`.
+/// Increments the given metric by `n`.
 #[macro_export]
 macro_rules! inc_by {
     ($m:ty, $f:ident, $n:expr) => {
@@ -150,7 +150,7 @@ macro_rules! inc_by {
     };
 }
 
-/// Sets the given counter or gauge to `n`.
+/// Sets the given metric to `n`.
 #[macro_export]
 macro_rules! set {
     ($m:ty, $f:ident, $n:expr) => {
@@ -158,7 +158,7 @@ macro_rules! set {
     };
 }
 
-/// Decrements the given gauge by 1.
+/// Decrements the given metric by 1.
 #[macro_export]
 macro_rules! dec {
     ($m:ty, $f:ident) => {
@@ -168,7 +168,7 @@ macro_rules! dec {
     };
 }
 
-/// Decrements the given gauge `n`.
+/// Decrements the given metric by `n`.
 #[macro_export]
 macro_rules! dec_by {
     ($m:ty, $f:ident, $n:expr) => {
