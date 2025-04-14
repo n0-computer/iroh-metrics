@@ -40,16 +40,16 @@ impl MetricValue {
 
 /// Trait for metric items.
 pub trait Metric: std::fmt::Debug {
-    /// The type of this metric.
+    /// Returns the type of this metric.
     fn r#type(&self) -> MetricType;
 
-    /// The current value of this metric.
+    /// Returns the current value of this metric.
     fn value(&self) -> MetricValue;
 
-    /// The help string for this metric.
+    /// Returns the help string for this metric.
     fn help(&self) -> &'static str;
 
-    /// Cast this metric to [`Any`] for downcasting to concrete types.
+    /// Casts this metric to [`Any`] for downcasting to concrete types.
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -93,7 +93,7 @@ impl Counter {
         }
     }
 
-    /// Increase the [`Counter`] by 1, returning the previous value.
+    /// Increases the [`Counter`] by 1, returning the previous value.
     pub fn inc(&self) -> u64 {
         #[cfg(feature = "metrics")]
         {
@@ -103,13 +103,14 @@ impl Counter {
         0
     }
 
-    /// Increase the [`Counter`] by `u64`, returning the previous value.
+    /// Increases the [`Counter`] by `u64`, returning the previous value.
     #[cfg(feature = "metrics")]
     pub fn inc_by(&self, v: u64) -> u64 {
         self.counter.inc_by(v)
     }
 
-    /// Set the [`Counter`] value.
+    /// Sets the [`Counter`] value.
+    ///
     /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
     #[cfg(feature = "metrics")]
     pub fn set(&self, v: u64) -> u64 {
@@ -119,20 +120,21 @@ impl Counter {
         v
     }
 
-    /// Set the [`Counter`] value.
+    /// Sets the [`Counter`] value.
+    ///
     /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
     #[cfg(not(feature = "metrics"))]
     pub fn set(&self, _v: u64) -> u64 {
         0
     }
 
-    /// Increase the [`Counter`] by `u64`, returning the previous value.
+    /// Increases the [`Counter`] by `u64`, returning the previous value.
     #[cfg(not(feature = "metrics"))]
     pub fn inc_by(&self, _v: u64) -> u64 {
         0
     }
 
-    /// Get the current value of the [`Counter`].
+    /// Returns the current value of the [`Counter`].
     pub fn get(&self) -> u64 {
         #[cfg(feature = "metrics")]
         {
@@ -181,7 +183,7 @@ impl Gauge {
         }
     }
 
-    /// Increase the [`Gauge`] by 1, returning the previous value.
+    /// Increases the [`Gauge`] by 1, returning the previous value.
     pub fn inc(&self) -> i64 {
         #[cfg(feature = "metrics")]
         {
@@ -190,18 +192,20 @@ impl Gauge {
         #[cfg(not(feature = "metrics"))]
         0
     }
-    /// Increase the [`Gauge`] by `i64`, returning the previous value.
+
+    /// Increases the [`Gauge`] by `i64`, returning the previous value.
     #[cfg(feature = "metrics")]
     pub fn inc_by(&self, v: i64) -> i64 {
         self.gauge.inc_by(v)
     }
-    /// Increase the [`Gauge`] by `i64`, returning the previous value.
+
+    /// Increases the [`Gauge`] by `i64`, returning the previous value.
     #[cfg(not(feature = "metrics"))]
     pub fn inc_by(&self, _v: u64) -> u64 {
         0
     }
 
-    /// Decrease the [`Gauge`] by 1, returning the previous value.
+    /// Decreases the [`Gauge`] by 1, returning the previous value.
     pub fn dec(&self) -> i64 {
         #[cfg(feature = "metrics")]
         {
@@ -210,18 +214,20 @@ impl Gauge {
         #[cfg(not(feature = "metrics"))]
         0
     }
-    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
+
+    /// Decreases the [`Gauge`] by `i64`, returning the previous value.
     #[cfg(feature = "metrics")]
     pub fn dec_by(&self, v: i64) -> i64 {
         self.gauge.dec_by(v)
     }
-    /// Decrease the [`Gauge`] by `i64`, returning the previous value.
+
+    /// Decreases the [`Gauge`] by `i64`, returning the previous value.
     #[cfg(not(feature = "metrics"))]
     pub fn dec_by(&self, _v: u64) -> u64 {
         0
     }
 
-    /// Set the [`Gauge`] value.
+    /// Sets the [`Gauge`] value.
     #[cfg(feature = "metrics")]
     pub fn set(&self, v: i64) -> i64 {
         self.gauge
@@ -229,20 +235,22 @@ impl Gauge {
             .store(v, std::sync::atomic::Ordering::Relaxed);
         v
     }
-    /// Set the [`Gauge`] value.
+
+    /// Sets the [`Gauge`] value.
     #[cfg(not(feature = "metrics"))]
     pub fn set(&self, _v: i64) -> i64 {
         0
     }
 
-    /// Get the [`Gauge`] value.
+    /// Returns the [`Gauge`] value.
     #[cfg(feature = "metrics")]
     pub fn get(&self) -> i64 {
         self.gauge
             .inner()
             .load(std::sync::atomic::Ordering::Relaxed)
     }
-    /// Get the [`Gauge`] value.
+
+    /// Returns the [`Gauge`] value.
     #[cfg(not(feature = "metrics"))]
     pub fn get(&self) -> i64 {
         0
