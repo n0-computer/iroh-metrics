@@ -104,33 +104,26 @@ impl Counter {
     }
 
     /// Increases the [`Counter`] by `u64`, returning the previous value.
-    #[cfg(feature = "metrics")]
     pub fn inc_by(&self, v: u64) -> u64 {
-        self.counter.inc_by(v)
-    }
-
-    /// Sets the [`Counter`] value.
-    ///
-    /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
-    #[cfg(feature = "metrics")]
-    pub fn set(&self, v: u64) -> u64 {
-        self.counter
-            .inner()
-            .store(v, std::sync::atomic::Ordering::Relaxed);
-        v
-    }
-
-    /// Sets the [`Counter`] value.
-    ///
-    /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
-    #[cfg(not(feature = "metrics"))]
-    pub fn set(&self, _v: u64) -> u64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.counter.inc_by(v)
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 
-    /// Increases the [`Counter`] by `u64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn inc_by(&self, _v: u64) -> u64 {
+    /// Sets the [`Counter`] value, returning the previous value.
+    ///
+    /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
+    pub fn set(&self, v: u64) -> u64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.counter
+                .inner()
+                .swap(v, std::sync::atomic::Ordering::Relaxed)
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 
@@ -194,14 +187,12 @@ impl Gauge {
     }
 
     /// Increases the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(feature = "metrics")]
     pub fn inc_by(&self, v: i64) -> i64 {
-        self.gauge.inc_by(v)
-    }
-
-    /// Increases the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn inc_by(&self, _v: u64) -> u64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.inc_by(v)
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 
@@ -216,43 +207,32 @@ impl Gauge {
     }
 
     /// Decreases the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(feature = "metrics")]
     pub fn dec_by(&self, v: i64) -> i64 {
-        self.gauge.dec_by(v)
-    }
-
-    /// Decreases the [`Gauge`] by `i64`, returning the previous value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn dec_by(&self, _v: u64) -> u64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.dec_by(v)
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 
-    /// Sets the [`Gauge`] value.
-    #[cfg(feature = "metrics")]
+    /// Sets the [`Gauge`] to `v`, returning the previous value.
     pub fn set(&self, v: i64) -> i64 {
-        self.gauge
-            .inner()
-            .store(v, std::sync::atomic::Ordering::Relaxed);
-        v
-    }
-
-    /// Sets the [`Gauge`] value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn set(&self, _v: i64) -> i64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.set(v)
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 
     /// Returns the [`Gauge`] value.
-    #[cfg(feature = "metrics")]
     pub fn get(&self) -> i64 {
-        self.gauge
-            .inner()
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Returns the [`Gauge`] value.
-    #[cfg(not(feature = "metrics"))]
-    pub fn get(&self) -> i64 {
+        #[cfg(feature = "metrics")]
+        {
+            self.gauge.get()
+        }
+        #[cfg(not(feature = "metrics"))]
         0
     }
 }
