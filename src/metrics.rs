@@ -111,7 +111,7 @@ impl Counter {
         }
         #[cfg(not(feature = "metrics"))]
         {
-            drop(v);
+            let _ = v;
             0
         }
     }
@@ -128,7 +128,7 @@ impl Counter {
         }
         #[cfg(not(feature = "metrics"))]
         {
-            drop(v);
+            let _ = v;
             0
         }
     }
@@ -200,7 +200,7 @@ impl Gauge {
         }
         #[cfg(not(feature = "metrics"))]
         {
-            drop(v);
+            let _ = v;
             0
         }
     }
@@ -223,7 +223,7 @@ impl Gauge {
         }
         #[cfg(not(feature = "metrics"))]
         {
-            drop(v);
+            let _ = v;
             0
         }
     }
@@ -236,7 +236,7 @@ impl Gauge {
         }
         #[cfg(not(feature = "metrics"))]
         {
-            drop(v);
+            let _ = v;
             0
         }
     }
