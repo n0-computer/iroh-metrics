@@ -51,7 +51,31 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
@@ -62,16 +86,40 @@
 <span class="kw">mod </span>metrics;
 <span class="kw">pub use </span>metrics::<span class="kw-2">*</span>;
 
+<span class="kw">pub mod </span>iterable;
+
 <span class="attr">#[cfg(feature = <span class="string">"static_core"</span>)]
 </span><span class="kw">pub mod </span>static_core;
 
 <span class="attr">#[cfg(feature = <span class="string">"service"</span>)]
 </span><span class="kw">pub mod </span>service;
 
-<span class="kw">use </span>std::collections::HashMap;
+<span class="doccomment">/// Derives [`MetricsGroup`], [`Iterable`] and [`Default`] for a struct.
+///
+/// This derive macro only works on structs with named fields.
+///
+/// It will generate a [`Default`] impl which expects all fields to be of a type
+/// that has a public `new` method taking a single `&amp;'static str` argument.
+/// The [`Default::default`] method will call each field's `new` method with the
+/// first line of the field's doc comment as argument. Alternatively, you can override
+/// the value passed to `new` by setting a `#[metrics(help = "my help")]`
+/// attribute on the field.
+///
+/// It will also generate a [`MetricsGroup`] impl. By default, the struct's name,
+/// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
+/// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
+///
+/// It will also generate a [`Iterable`] impl.
+///
+/// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
+/// [`Iterable`]: ::iroh_metrics::Iterable
+/// [`Default`]: ::std::default::Default
+</span><span class="kw">pub use </span>iroh_metrics_derive::MetricsGroup;
 
-<span class="doccomment">/// Reexports `struct_iterable` to make matching versions easier.
-</span><span class="kw">pub use </span>struct_iterable;
+<span class="comment">// This lets us use the derive metrics in the lib tests within this crate.
+</span><span class="kw">extern crate </span><span class="self">self </span><span class="kw">as </span>iroh_metrics;
+
+<span class="kw">use </span>std::collections::HashMap;
 
 <span class="doccomment">/// Potential errors from this library.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]

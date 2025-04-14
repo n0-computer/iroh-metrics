@@ -345,99 +345,61 @@
 <a href="#344" id="344">344</a>
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
+<a href="#347" id="347">347</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::any::Any;
+
+<span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
 </span><span class="kw">pub use </span>prometheus_client::registry::Registry;
 
 <span class="kw">use crate</span>::{
-    metrics::{Counter, Gauge},
-    MetricType,
+    iterable::{FieldIter, IntoIterable, Iterable},
+    Metric,
 };
 
-<span class="doccomment">/// Description of a group of metrics.
+<span class="doccomment">/// Trait for structs containing metric items.
 </span><span class="kw">pub trait </span>MetricsGroup:
-    struct_iterable::Iterable + std::fmt::Debug + <span class="lifetime">'static </span>+ Send + Sync
+    Any + Iterable + IntoIterable + std::fmt::Debug + <span class="lifetime">'static </span>+ Send + Sync
 {
-    <span class="doccomment">/// Initializes this metric group.
+    <span class="doccomment">/// Registers all metric items in this metrics group to a [`prometheus_client::registry::Registry`].
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>register(<span class="kw-2">&amp;</span><span class="self">self</span>, registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) {
+        <span class="kw">use crate</span>::{Counter, Gauge};
         <span class="kw">let </span>sub_registry = registry.sub_registry_with_prefix(<span class="self">self</span>.name());
-
-        <span class="kw">for </span>(metric, item) <span class="kw">in </span><span class="self">self</span>.iter() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = item.downcast_ref::&lt;Counter&gt;() {
-                sub_registry.register(metric, counter.description, counter.counter.clone());
+        <span class="kw">for </span>item <span class="kw">in </span><span class="self">self</span>.iter() {
+            <span class="comment">// Remove trailing dot, becausse `Registry::register` adds it automatically.
+            </span><span class="kw">let </span>help = item.help().trim_end_matches(<span class="string">'.'</span>);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = item.as_any().downcast_ref::&lt;Counter&gt;() {
+                sub_registry.register(item.name(), help, counter.counter.clone());
             }
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(gauge) = item.downcast_ref::&lt;Gauge&gt;() {
-                sub_registry.register(metric, gauge.description, gauge.gauge.clone());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(gauge) = item.as_any().downcast_ref::&lt;Gauge&gt;() {
+                sub_registry.register(item.name(), help, gauge.gauge.clone());
             }
         }
     }
 
-    <span class="doccomment">/// The name of this metric group.
+    <span class="doccomment">/// Returns the name of this metrics group.
     </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
-    <span class="doccomment">/// Returns the metrics descriptions.
-    </span><span class="kw">fn </span>describe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;MetricDescription&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
-        <span class="kw">for </span>(name, item) <span class="kw">in </span><span class="self">self</span>.iter() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = item.downcast_ref::&lt;Counter&gt;() {
-                res.push(MetricDescription {
-                    name,
-                    description: item.description,
-                    r#type: MetricType::Counter,
-                });
-            }
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = item.downcast_ref::&lt;Gauge&gt;() {
-                res.push(MetricDescription {
-                    name,
-                    description: item.description,
-                    r#type: MetricType::Gauge,
-                });
-            }
+    <span class="doccomment">/// Returns an iterator over all metric items with their values and helps.
+    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricsIter {
+        MetricsIter {
+            inner: <span class="self">self</span>.field_iter(),
         }
-        res
-    }
-
-    <span class="doccomment">/// Returns an iterator over all metric items with their values and types.
-    </span><span class="kw">fn </span>values(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ValuesIter {
-        ValuesIter { inner: <span class="self">self</span>.iter() }
     }
 }
 
-<span class="doccomment">/// Iterator over metric items with their values.
+<span class="doccomment">/// Iterator over metric items.
 ///
-/// Returned from [`MetricsGroup::values`].
+/// Returned from [`MetricsGroup::iter`].
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>ValuesIter&lt;<span class="lifetime">'a</span>&gt; {
-    inner: std::vec::IntoIter&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw">dyn </span>std::any::Any)&gt;,
+</span><span class="kw">pub struct </span>MetricsIter&lt;<span class="lifetime">'a</span>&gt; {
+    inner: FieldIter&lt;<span class="lifetime">'a</span>&gt;,
 }
 
-<span class="kw">impl </span>Iterator <span class="kw">for </span>ValuesIter&lt;<span class="lifetime">'_</span>&gt; {
-    <span class="kw">type </span>Item = MetricItem;
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Iterator <span class="kw">for </span>MetricsIter&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Item = MetricItem&lt;<span class="lifetime">'a</span>&gt;;
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
-        <span class="kw">loop </span>{
-            <span class="kw">let </span>(name, item) = <span class="self">self</span>.inner.next()<span class="question-mark">?</span>;
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = item.downcast_ref::&lt;Counter&gt;() {
-                <span class="kw">break </span><span class="prelude-val">Some</span>(MetricItem {
-                    name,
-                    r#type: MetricType::Counter,
-                    description: item.description,
-                    value: MetricValue::Counter(item.get()),
-                });
-            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = item.downcast_ref::&lt;Gauge&gt;() {
-                <span class="kw">break </span><span class="prelude-val">Some</span>(MetricItem {
-                    name,
-                    r#type: MetricType::Gauge,
-                    description: item.description,
-                    value: MetricValue::Gauge(item.get()),
-                });
-            } <span class="kw">else </span>{
-                <span class="kw">continue</span>;
-            }
-        }
+        <span class="kw">let </span>(name, metric) = <span class="self">self</span>.inner.next()<span class="question-mark">?</span>;
+        <span class="prelude-val">Some</span>(MetricItem { name, metric })
     }
 
     <span class="kw">fn </span>size_hint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (usize, <span class="prelude-ty">Option</span>&lt;usize&gt;) {
@@ -446,85 +408,56 @@
 }
 
 <span class="doccomment">/// A metric item with its current value.
-</span><span class="attr">#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-</span><span class="kw">pub struct </span>MetricItem {
-    <span class="doccomment">/// The type of this metric item.
-    </span><span class="kw">pub </span>r#type: MetricType,
-    <span class="doccomment">/// The name of this metric item.
-    </span><span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    <span class="doccomment">/// The description of this metric item.
-    </span><span class="kw">pub </span>description: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    <span class="doccomment">/// The current value.
-    </span><span class="kw">pub </span>value: MetricValue,
+</span><span class="attr">#[derive(Debug, Clone, Copy)]
+</span><span class="kw">pub struct </span>MetricItem&lt;<span class="lifetime">'a</span>&gt; {
+    name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+    metric: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw">dyn </span>Metric,
 }
 
-<span class="doccomment">/// The value of an individual metric item.
-</span><span class="attr">#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-</span><span class="kw">pub enum </span>MetricValue {
-    <span class="doccomment">/// A [`Counter`] value.
-    </span>Counter(u64),
-    <span class="doccomment">/// A [`Gauge`] value.
-    </span>Gauge(i64),
-}
-
-<span class="kw">impl </span>MetricValue {
-    <span class="doccomment">/// Returns the value as [`f32`].
-    </span><span class="kw">pub fn </span>to_f32(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
-        <span class="kw">match </span><span class="self">self </span>{
-            MetricValue::Counter(value) =&gt; <span class="kw-2">*</span>value <span class="kw">as </span>f32,
-            MetricValue::Gauge(value) =&gt; <span class="kw-2">*</span>value <span class="kw">as </span>f32,
-        }
+<span class="kw">impl </span>MetricItem&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="doccomment">/// Returns the name of this metric item.
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="self">self</span>.name
     }
 }
 
-<span class="doccomment">/// Extension methods for types implementing [`MetricsGroup`].
-///
-/// This contains non-dyn-compatible methods, which is why they can't live on the [`MetricsGroup`] trait.
-</span><span class="kw">pub trait </span>MetricsGroupExt: MetricsGroup + Default {
-    <span class="doccomment">/// Create a new instance and register with a registry.
-    </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
-    </span><span class="kw">fn </span>new(registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>m = <span class="self">Self</span>::default();
-        m.register(registry);
-        m
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; std::ops::Deref <span class="kw">for </span>MetricItem&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">type </span>Target = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw">dyn </span>Metric;
+    <span class="kw">fn </span>deref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Target {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.metric
     }
 }
-
-<span class="kw">impl</span>&lt;T&gt; MetricsGroupExt <span class="kw">for </span>T <span class="kw">where </span>T: MetricsGroup + Default {}
 
 <span class="doccomment">/// Trait for a set of structs implementing [`MetricsGroup`].
 </span><span class="kw">pub trait </span>MetricsGroupSet {
-    <span class="doccomment">/// Returns an iterator of references to structs implementing [`MetricsGroup`].
-    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt;;
-
     <span class="doccomment">/// Returns the name of this metrics group set.
     </span><span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
+
+    <span class="doccomment">/// Returns an iterator over all metrics in this metrics group set.
+    ///
+    /// The iterator yields tuples of `(&amp;str, MetricItem)`. The `&amp;str` is the group name.
+    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, MetricItem&lt;<span class="lifetime">'_</span>&gt;)&gt; {
+        <span class="self">self</span>.groups()
+            .flat_map(|group| group.iter().map(|item| (group.name(), item)))
+    }
+
+    <span class="doccomment">/// Returns an iterator over the [`MetricsGroup`] in this struct.
+    </span><span class="kw">fn </span>groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt;;
 
     <span class="doccomment">/// Register all metrics groups in this set onto a prometheus client registry.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">fn </span>register(<span class="kw-2">&amp;</span><span class="self">self</span>, registry: <span class="kw-2">&amp;mut </span>prometheus_client::registry::Registry) {
-        <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter() {
-            metric.register(registry)
+        <span class="kw">for </span>group <span class="kw">in </span><span class="self">self</span>.groups() {
+            group.register(registry)
         }
     }
-}
-
-<span class="doccomment">/// Returns the metric item representation.
-</span><span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>MetricDescription {
-    <span class="doccomment">/// The name of the metric.
-    </span><span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    <span class="doccomment">/// The description of the metric.
-    </span><span class="kw">pub </span>description: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    <span class="doccomment">/// The type of the metric.
-    </span><span class="kw">pub </span>r#type: MetricType,
 }
 
 <span class="doccomment">/// Ensure metrics can be used without `metrics` feature.
 /// All ops are noops then, get always returns 0.
 </span><span class="attr">#[cfg(all(test, not(feature = <span class="string">"metrics"</span>)))]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">super</span>::Counter;
+    <span class="kw">use </span><span class="kw">crate</span>::Counter;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test() {
@@ -537,9 +470,8 @@
 <span class="doccomment">/// Tests with the `metrics` feature,
 </span><span class="attr">#[cfg(all(test, feature = <span class="string">"metrics"</span>))]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>struct_iterable::Iterable;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use crate</span>::{iterable::Iterable, Counter, Gauge, MetricType};
 
     <span class="attr">#[derive(Debug, Clone, Iterable)]
     </span><span class="kw">pub struct </span>FooMetrics {
@@ -592,7 +524,7 @@
             <span class="string">"combined"
         </span>}
 
-        <span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt; {
+        <span class="kw">fn </span>groups(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup&gt; {
             [
                 <span class="kw-2">&amp;</span><span class="self">self</span>.foo <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
                 <span class="kw-2">&amp;</span><span class="self">self</span>.bar <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>MetricsGroup,
@@ -602,16 +534,16 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_metric_description() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+    </span><span class="kw">fn </span>test_metric_help() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
         <span class="kw">let </span>metrics = FooMetrics::default();
-        <span class="kw">let </span>items = metrics.describe();
+        <span class="kw">let </span>items: Vec&lt;<span class="kw">_</span>&gt; = metrics.iter().collect();
         <span class="macro">assert_eq!</span>(items.len(), <span class="number">2</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].name, <span class="string">"metric_a"</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].description, <span class="string">"metric_a"</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].r#type, MetricType::Counter);
-        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].name, <span class="string">"metric_b"</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].description, <span class="string">"metric_b"</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].r#type, MetricType::Counter);
+        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].name(), <span class="string">"metric_a"</span>);
+        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].help(), <span class="string">"metric_a"</span>);
+        <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].r#type(), MetricType::Counter);
+        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].name(), <span class="string">"metric_b"</span>);
+        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].help(), <span class="string">"metric_b"</span>);
+        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].r#type(), MetricType::Counter);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -661,21 +593,34 @@ foo_metric_b_total 2
         metrics.foo.metric_a.inc();
         metrics.bar.count.inc_by(<span class="number">10</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>collected = <span class="macro">vec!</span>[];
-        <span class="comment">// manual collection and iteration with manual downcasting
-        </span><span class="kw">for </span>group <span class="kw">in </span>metrics.iter() {
-            <span class="kw">for </span>(name, metric) <span class="kw">in </span>group.iter() {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = metric.downcast_ref::&lt;Counter&gt;() {
-                    collected.push((group.name(), name, counter.description, counter.get()));
+        <span class="comment">// Using `iter` to iterate over all metrics in the group set.
+        </span><span class="kw">let </span>collected = metrics
+            .iter()
+            .map(|(group, metric)| (group, metric.name(), metric.help(), metric.value().to_f32()));
+        <span class="macro">assert_eq!</span>(
+            collected.collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+            <span class="macro">vec!</span>[
+                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="string">"metric_a"</span>, <span class="number">1.0</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="string">"metric_b"</span>, <span class="number">0.0</span>),
+                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="string">"Bar Count"</span>, <span class="number">10.0</span>),
+            ]
+        );
+
+        <span class="comment">// Using manual downcasting.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>collected = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>group <span class="kw">in </span>metrics.groups() {
+            <span class="kw">for </span>metric <span class="kw">in </span>group.iter() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = metric.as_any().downcast_ref::&lt;Counter&gt;() {
+                    collected.push((group.name(), metric.name(), counter.get()));
                 }
             }
         }
         <span class="macro">assert_eq!</span>(
             collected,
             <span class="macro">vec!</span>[
-                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="string">"metric_a"</span>, <span class="number">1</span>),
-                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="string">"metric_b"</span>, <span class="number">0</span>),
-                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="string">"Bar Count"</span>, <span class="number">10</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="number">1</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="number">0</span>),
+                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="number">10</span>),
             ]
         );
 
@@ -698,6 +643,53 @@ combined_bar_count_total 10
         encode(<span class="kw-2">&amp;mut </span>enc, <span class="kw-2">&amp;</span>registry).expect(<span class="string">"writing to string always works"</span>);
 
         <span class="macro">assert_eq!</span>(enc, exp);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_derive() {
+        <span class="kw">use crate</span>::{MetricValue, MetricsGroup};
+
+        <span class="attr">#[derive(Debug, Clone, MetricsGroup)]
+        #[metrics(name = <span class="string">"my-metrics"</span>)]
+        </span><span class="kw">struct </span>Metrics {
+            <span class="doccomment">/// Counts foos
+            ///
+            /// Only the first line is used for the OpenMetrics help
+            </span>foo: Counter,
+            <span class="comment">// no help: use field name as help
+            </span>bar: Counter,
+            <span class="doccomment">/// This docstring is not used as prometheus help
+            </span><span class="attr">#[metrics(help = <span class="string">"Measures baz"</span>)]
+            </span>baz: Gauge,
+        }
+
+        <span class="kw">let </span>metrics = Metrics::default();
+        <span class="macro">assert_eq!</span>(metrics.name(), <span class="string">"my-metrics"</span>);
+
+        metrics.foo.inc();
+        metrics.bar.inc_by(<span class="number">2</span>);
+        metrics.baz.set(<span class="number">3</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>values = metrics.iter();
+        <span class="kw">let </span>foo = values.next().unwrap();
+        <span class="kw">let </span>bar = values.next().unwrap();
+        <span class="kw">let </span>baz = values.next().unwrap();
+        <span class="macro">assert_eq!</span>(foo.value(), MetricValue::Counter(<span class="number">1</span>));
+        <span class="macro">assert_eq!</span>(foo.name(), <span class="string">"foo"</span>);
+        <span class="macro">assert_eq!</span>(foo.help(), <span class="string">"Counts foos"</span>);
+        <span class="macro">assert_eq!</span>(bar.value(), MetricValue::Counter(<span class="number">2</span>));
+        <span class="macro">assert_eq!</span>(bar.name(), <span class="string">"bar"</span>);
+        <span class="macro">assert_eq!</span>(bar.help(), <span class="string">"bar"</span>);
+        <span class="macro">assert_eq!</span>(baz.value(), MetricValue::Gauge(<span class="number">3</span>));
+        <span class="macro">assert_eq!</span>(baz.name(), <span class="string">"baz"</span>);
+        <span class="macro">assert_eq!</span>(baz.help(), <span class="string">"Measures baz"</span>);
+
+        <span class="attr">#[derive(Debug, Clone, MetricsGroup)]
+        </span><span class="kw">struct </span>FooMetrics {}
+        <span class="kw">let </span>metrics = FooMetrics::default();
+        <span class="macro">assert_eq!</span>(metrics.name(), <span class="string">"foo_metrics"</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>values = metrics.iter();
+        <span class="macro">assert!</span>(values.next().is_none());
     }
 }
 </code></pre></div></section></main></body></html>

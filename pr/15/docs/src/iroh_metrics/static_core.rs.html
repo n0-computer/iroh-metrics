@@ -177,8 +177,7 @@
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
+<a href="#179" id="179">179</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
 //!
 //! Enables and manages a global registry of metrics.
 //! Divided up into modules, each module has its own metrics.
@@ -190,8 +189,7 @@
 //!
 //! # Example:
 //! ```rust
-//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
-//! use struct_iterable::Iterable;
+//! use iroh_metrics::{inc, inc_by, iterable::Iterable, static_core::Core, Counter, MetricsGroup};
 //!
 //! #[derive(Debug, Clone, Iterable)]
 //! pub struct Metrics {
