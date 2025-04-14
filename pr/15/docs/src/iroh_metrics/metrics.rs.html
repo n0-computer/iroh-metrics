@@ -248,7 +248,15 @@
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines the individual metric types.
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines the individual metric types.
 //!
 //! If the `metrics` feature is enabled, they contain metric types based on atomics
 //! which can be modified without needing mutable access.
@@ -290,16 +298,16 @@
 
 <span class="doccomment">/// Trait for metric items.
 </span><span class="kw">pub trait </span>Metric: std::fmt::Debug {
-    <span class="doccomment">/// The type of this metric.
+    <span class="doccomment">/// Returns the type of this metric.
     </span><span class="kw">fn </span>r#type(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricType;
 
-    <span class="doccomment">/// The current value of this metric.
+    <span class="doccomment">/// Returns the current value of this metric.
     </span><span class="kw">fn </span>value(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricValue;
 
-    <span class="doccomment">/// The help string for this metric.
+    <span class="doccomment">/// Returns the help string for this metric.
     </span><span class="kw">fn </span>help(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str;
 
-    <span class="doccomment">/// Cast this metric to [`Any`] for downcasting to concrete types.
+    <span class="doccomment">/// Casts this metric to [`Any`] for downcasting to concrete types.
     </span><span class="kw">fn </span>as_any(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="kw">dyn </span>Any;
 }
 
@@ -343,7 +351,7 @@
         }
     }
 
-    <span class="doccomment">/// Increase the [`Counter`] by 1, returning the previous value.
+    <span class="doccomment">/// Increases the [`Counter`] by 1, returning the previous value.
     </span><span class="kw">pub fn </span>inc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
         </span>{
@@ -353,13 +361,14 @@
         </span><span class="number">0
     </span>}
 
-    <span class="doccomment">/// Increase the [`Counter`] by `u64`, returning the previous value.
+    <span class="doccomment">/// Increases the [`Counter`] by `u64`, returning the previous value.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>inc_by(<span class="kw-2">&amp;</span><span class="self">self</span>, v: u64) -&gt; u64 {
         <span class="self">self</span>.counter.inc_by(v)
     }
 
-    <span class="doccomment">/// Set the [`Counter`] value.
+    <span class="doccomment">/// Sets the [`Counter`] value.
+    ///
     /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>set(<span class="kw-2">&amp;</span><span class="self">self</span>, v: u64) -&gt; u64 {
@@ -369,20 +378,21 @@
         v
     }
 
-    <span class="doccomment">/// Set the [`Counter`] value.
+    <span class="doccomment">/// Sets the [`Counter`] value.
+    ///
     /// Warning: this is not default behavior for a counter that should always be monotonically increasing.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>set(<span class="kw-2">&amp;</span><span class="self">self</span>, _v: u64) -&gt; u64 {
         <span class="number">0
     </span>}
 
-    <span class="doccomment">/// Increase the [`Counter`] by `u64`, returning the previous value.
+    <span class="doccomment">/// Increases the [`Counter`] by `u64`, returning the previous value.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>inc_by(<span class="kw-2">&amp;</span><span class="self">self</span>, _v: u64) -&gt; u64 {
         <span class="number">0
     </span>}
 
-    <span class="doccomment">/// Get the current value of the [`Counter`].
+    <span class="doccomment">/// Returns the current value of the [`Counter`].
     </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
         </span>{
@@ -431,7 +441,7 @@
         }
     }
 
-    <span class="doccomment">/// Increase the [`Gauge`] by 1, returning the previous value.
+    <span class="doccomment">/// Increases the [`Gauge`] by 1, returning the previous value.
     </span><span class="kw">pub fn </span>inc(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
         </span>{
@@ -440,18 +450,20 @@
         <span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
         </span><span class="number">0
     </span>}
-    <span class="doccomment">/// Increase the [`Gauge`] by `i64`, returning the previous value.
+
+    <span class="doccomment">/// Increases the [`Gauge`] by `i64`, returning the previous value.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>inc_by(<span class="kw-2">&amp;</span><span class="self">self</span>, v: i64) -&gt; i64 {
         <span class="self">self</span>.gauge.inc_by(v)
     }
-    <span class="doccomment">/// Increase the [`Gauge`] by `i64`, returning the previous value.
+
+    <span class="doccomment">/// Increases the [`Gauge`] by `i64`, returning the previous value.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>inc_by(<span class="kw-2">&amp;</span><span class="self">self</span>, _v: u64) -&gt; u64 {
         <span class="number">0
     </span>}
 
-    <span class="doccomment">/// Decrease the [`Gauge`] by 1, returning the previous value.
+    <span class="doccomment">/// Decreases the [`Gauge`] by 1, returning the previous value.
     </span><span class="kw">pub fn </span>dec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
         </span>{
@@ -460,18 +472,20 @@
         <span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
         </span><span class="number">0
     </span>}
-    <span class="doccomment">/// Decrease the [`Gauge`] by `i64`, returning the previous value.
+
+    <span class="doccomment">/// Decreases the [`Gauge`] by `i64`, returning the previous value.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>dec_by(<span class="kw-2">&amp;</span><span class="self">self</span>, v: i64) -&gt; i64 {
         <span class="self">self</span>.gauge.dec_by(v)
     }
-    <span class="doccomment">/// Decrease the [`Gauge`] by `i64`, returning the previous value.
+
+    <span class="doccomment">/// Decreases the [`Gauge`] by `i64`, returning the previous value.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>dec_by(<span class="kw-2">&amp;</span><span class="self">self</span>, _v: u64) -&gt; u64 {
         <span class="number">0
     </span>}
 
-    <span class="doccomment">/// Set the [`Gauge`] value.
+    <span class="doccomment">/// Sets the [`Gauge`] value.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>set(<span class="kw-2">&amp;</span><span class="self">self</span>, v: i64) -&gt; i64 {
         <span class="self">self</span>.gauge
@@ -479,20 +493,22 @@
             .store(v, std::sync::atomic::Ordering::Relaxed);
         v
     }
-    <span class="doccomment">/// Set the [`Gauge`] value.
+
+    <span class="doccomment">/// Sets the [`Gauge`] value.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>set(<span class="kw-2">&amp;</span><span class="self">self</span>, _v: i64) -&gt; i64 {
         <span class="number">0
     </span>}
 
-    <span class="doccomment">/// Get the [`Gauge`] value.
+    <span class="doccomment">/// Returns the [`Gauge`] value.
     </span><span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
     </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="self">self</span>.gauge
             .inner()
             .load(std::sync::atomic::Ordering::Relaxed)
     }
-    <span class="doccomment">/// Get the [`Gauge`] value.
+
+    <span class="doccomment">/// Returns the [`Gauge`] value.
     </span><span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
     </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="number">0
