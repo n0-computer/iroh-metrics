@@ -2,7 +2,21 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.32.0](https://github.com/n0-computer/iroh-metrics/compare/v0.31.0..0.32.0) - 2025-02-26
+## [iroh-metrics-derive-v0.1.0](https://github.com/n0-computer/iroh-metrics/compare/v0.32.0..iroh-metrics-derive-v0.1.0) - 2025-04-16
+
+### 🐛 Bug Fixes
+
+- *(ci)* Doc url ([#19](https://github.com/n0-computer/iroh-metrics/issues/19)) - ([40a8716](https://github.com/n0-computer/iroh-metrics/commit/40a87161cb69d77374c3deeebd4ec50ab015a2cf))
+
+### 🚜 Refactor
+
+- [**breaking**] Make global core optional, add derive macro, add `MetricsGroup` and `MetricsGroupSet` traits, reoganize modules ([#15](https://github.com/n0-computer/iroh-metrics/issues/15)) - ([90f3038](https://github.com/n0-computer/iroh-metrics/commit/90f3038760a13f0a9e445b492ff0c967c834620b))
+
+### ⚙️ Miscellaneous Tasks
+
+- Iroh-metrics-derive release prep - ([e79f91d](https://github.com/n0-computer/iroh-metrics/commit/e79f91d9e666fdfdedba2c9941ad66904dee7ab5))
+
+## [0.32.0](https://github.com/n0-computer/iroh-metrics/compare/v0.31.0..v0.32.0) - 2025-02-26
 
 ### ⛰️  Features
 
@@ -15,6 +29,7 @@ All notable changes to iroh will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Remove individual repo project tracking ([#9](https://github.com/n0-computer/iroh-metrics/issues/9)) - ([3b2f23f](https://github.com/n0-computer/iroh-metrics/commit/3b2f23fce0cac00b7f7a0da7b46347f53d73b535))
+- Release iroh-metrics version 0.32.0 - ([383b432](https://github.com/n0-computer/iroh-metrics/commit/383b432dd80b40821c2efcd3a32e68d6f32e0b7e))
 
 ## [0.31.0](https://github.com/n0-computer/iroh-metrics/compare/v0.30.0..v0.31.0) - 2025-01-14
 
