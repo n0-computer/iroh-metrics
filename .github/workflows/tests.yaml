@@ -69,7 +69,7 @@ jobs:
         tool: nextest
 
     - name: Install sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
+      uses: mozilla-actions/sccache-action@v0.0.9
 
     - name: Select features
       run: |
@@ -111,7 +111,7 @@ jobs:
     - name: list ignored tests
       run: |
         cargo nextest list --workspace ${{ env.FEATURES }} --lib --bins --tests --run-ignored ignored-only
-      env: 
+      env:
         NEXTEST_NO_TESTS: "pass"
 
     - name: run tests
@@ -202,7 +202,7 @@ jobs:
         }
 
     - name: Install sccache
-      uses: mozilla-actions/sccache-action@v0.0.7
+      uses: mozilla-actions/sccache-action@v0.0.9
 
     - uses: msys2/setup-msys2@v2
 
@@ -224,7 +224,7 @@ jobs:
         RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
         NEXTEST_NO_TESTS: "pass"
-  
+
     - name: upload results
       if: ${{ failure() && inputs.flaky }}
       uses: actions/upload-artifact@v4
