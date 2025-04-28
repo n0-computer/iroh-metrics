@@ -99,7 +99,9 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{iterable::Iterable, Counter, Gauge, MetricType, MetricsSource, Registry};
+    use crate::{
+        iterable::Iterable, Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
+    };
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
     pub struct FooMetrics {
@@ -134,13 +136,22 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Default, Serialize, Deserialize)]
+    #[derive(Debug, Default, Serialize, Deserialize, MetricsGroupSet)]
+    #[metrics(name = "combined")]
     struct CombinedMetrics {
         foo: Arc<FooMetrics>,
         bar: Arc<BarMetrics>,
     }
 
-    impl MetricsGroupSet for CombinedMetrics {
+    // Making sure it is reasonably possible to write the trait impl ourselves.
+    #[allow(unused)]
+    #[derive(Debug, Default)]
+    struct CombinedMetricsManual {
+        foo: Arc<FooMetrics>,
+        bar: Arc<BarMetrics>,
+    }
+
+    impl MetricsGroupSet for CombinedMetricsManual {
         fn name(&self) -> &'static str {
             "combined"
         }

@@ -34,6 +34,11 @@ pub mod static_core;
 ///
 /// [`Iterable`]: iterable::Iterable
 pub use iroh_metrics_derive::MetricsGroup;
+/// Derives [`MetricsGroupSet`] for a struct.
+///
+/// All fields of the struct must be public and have a type of `Arc<SomeType>`,
+/// where `SomeType` implements `MetricsGroup`.
+pub use iroh_metrics_derive::MetricsGroupSet;
 
 // This lets us use the derive metrics in the lib tests within this crate.
 extern crate self as iroh_metrics;
