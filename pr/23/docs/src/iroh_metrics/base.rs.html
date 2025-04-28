@@ -346,7 +346,26 @@
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
 
 <span class="kw">use crate</span>::{
     iterable::{FieldIter, IntoIterable, Iterable},
@@ -444,22 +463,24 @@
 <span class="doccomment">/// Tests with the `metrics` feature,
 </span><span class="attr">#[cfg(all(test, feature = <span class="string">"metrics"</span>))]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>serde::{Deserialize, Serialize};
+
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{
         iterable::Iterable, Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
-    <span class="attr">#[derive(Debug, Iterable)]
+    <span class="attr">#[derive(Debug, Iterable, Serialize, Deserialize)]
     </span><span class="kw">pub struct </span>FooMetrics {
         <span class="kw">pub </span>metric_a: Counter,
-        <span class="kw">pub </span>metric_b: Counter,
+        <span class="kw">pub </span>metric_b: Gauge,
     }
 
     <span class="kw">impl </span>Default <span class="kw">for </span>FooMetrics {
         <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
             <span class="self">Self </span>{
                 metric_a: Counter::new(),
-                metric_b: Counter::new(),
+                metric_b: Gauge::new(),
             }
         }
     }
@@ -470,7 +491,7 @@
         </span>}
     }
 
-    <span class="attr">#[derive(Debug, Default, Iterable)]
+    <span class="attr">#[derive(Debug, Default, Iterable, Serialize, Deserialize)]
     </span><span class="kw">pub struct </span>BarMetrics {
         <span class="doccomment">/// Bar Count
         </span><span class="kw">pub </span>count: Counter,
@@ -482,7 +503,7 @@
         </span>}
     }
 
-    <span class="attr">#[derive(Debug, Default, MetricsGroupSet)]
+    <span class="attr">#[derive(Debug, Default, Serialize, Deserialize, MetricsGroupSet)]
     #[metrics(name = <span class="string">"combined"</span>)]
     </span><span class="kw">struct </span>CombinedMetrics {
         foo: Arc&lt;FooMetrics&gt;,
@@ -529,7 +550,7 @@
         <span class="macro">assert_eq!</span>(items[<span class="number">0</span>].r#type(), MetricType::Counter);
         <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].name(), <span class="string">"metric_b"</span>);
         <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].help(), <span class="string">"metric_b"</span>);
-        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].r#type(), MetricType::Counter);
+        <span class="macro">assert_eq!</span>(items[<span class="number">1</span>].r#type(), MetricType::Gauge);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -558,8 +579,8 @@
 # TYPE foo_metric_a counter
 foo_metric_a_total 5
 # HELP foo_metric_b metric_b.
-# TYPE foo_metric_b counter
-foo_metric_b_total 2
+# TYPE foo_metric_b gauge
+foo_metric_b 2
 # EOF
 "</span>;
         <span class="kw">let </span>enc = registry.encode_openmetrics_to_string()<span class="question-mark">?</span>;
@@ -571,6 +592,7 @@ foo_metric_b_total 2
     </span><span class="kw">fn </span>test_metric_sets() {
         <span class="kw">let </span>metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-<span class="number">42</span>);
         metrics.bar.count.inc_by(<span class="number">10</span>);
 
         <span class="comment">// Using `iter` to iterate over all metrics in the group set.
@@ -581,7 +603,7 @@ foo_metric_b_total 2
             collected.collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="macro">vec!</span>[
                 (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="string">"metric_a"</span>, <span class="number">1.0</span>),
-                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="string">"metric_b"</span>, <span class="number">0.0</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="string">"metric_b"</span>, -<span class="number">42.0</span>),
                 (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="string">"Bar Count"</span>, <span class="number">10.0</span>),
             ]
         );
@@ -591,16 +613,19 @@ foo_metric_b_total 2
         <span class="kw">for </span>group <span class="kw">in </span>metrics.groups() {
             <span class="kw">for </span>metric <span class="kw">in </span>group.iter() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(counter) = metric.as_any().downcast_ref::&lt;Counter&gt;() {
-                    collected.push((group.name(), metric.name(), counter.get()));
+                    collected.push((group.name(), metric.name(), counter.value()));
+                }
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(gauge) = metric.as_any().downcast_ref::&lt;Gauge&gt;() {
+                    collected.push((group.name(), metric.name(), gauge.value()));
                 }
             }
         }
         <span class="macro">assert_eq!</span>(
             collected,
             <span class="macro">vec!</span>[
-                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, <span class="number">1</span>),
-                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, <span class="number">0</span>),
-                (<span class="string">"bar"</span>, <span class="string">"count"</span>, <span class="number">10</span>),
+                (<span class="string">"foo"</span>, <span class="string">"metric_a"</span>, MetricValue::Counter(<span class="number">1</span>)),
+                (<span class="string">"foo"</span>, <span class="string">"metric_b"</span>, MetricValue::Gauge(-<span class="number">42</span>)),
+                (<span class="string">"bar"</span>, <span class="string">"count"</span>, MetricValue::Counter(<span class="number">10</span>)),
             ]
         );
 
@@ -612,8 +637,8 @@ foo_metric_b_total 2
 # TYPE boo_foo_metric_a counter
 boo_foo_metric_a_total 1
 # HELP boo_foo_metric_b metric_b.
-# TYPE boo_foo_metric_b counter
-boo_foo_metric_b_total 0
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
 # HELP boo_bar_count Bar Count.
 # TYPE boo_bar_count counter
 boo_bar_count_total 10
@@ -627,8 +652,8 @@ boo_bar_count_total 10
 # TYPE boo_foo_metric_a counter
 boo_foo_metric_a_total 1
 # HELP boo_foo_metric_b metric_b.
-# TYPE boo_foo_metric_b counter
-boo_foo_metric_b_total 0
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
 # HELP boo_bar_count Bar Count.
 # TYPE boo_bar_count counter
 boo_bar_count_total 10
@@ -636,8 +661,8 @@ boo_bar_count_total 10
 # TYPE combined_foo_metric_a counter
 combined_foo_metric_a_total{x="y"} 1
 # HELP combined_foo_metric_b metric_b.
-# TYPE combined_foo_metric_b counter
-combined_foo_metric_b_total{x="y"} 0
+# TYPE combined_foo_metric_b gauge
+combined_foo_metric_b{x="y"} -42
 # HELP combined_bar_count Bar Count.
 # TYPE combined_bar_count counter
 combined_bar_count_total{x="y"} 10
@@ -692,6 +717,19 @@ combined_bar_count_total{x="y"} 10
         <span class="macro">assert_eq!</span>(metrics.name(), <span class="string">"foo_metrics"</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>values = metrics.iter();
         <span class="macro">assert!</span>(values.next().is_none());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_serde() {
+        <span class="kw">let </span>metrics = CombinedMetrics::default();
+        metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-<span class="number">42</span>);
+        metrics.bar.count.inc_by(<span class="number">10</span>);
+        <span class="kw">let </span>encoded = postcard::to_stdvec(<span class="kw-2">&amp;</span>metrics).unwrap();
+        <span class="kw">let </span>decoded: CombinedMetrics = postcard::from_bytes(<span class="kw-2">&amp;</span>encoded).unwrap();
+        <span class="macro">assert_eq!</span>(decoded.foo.metric_a.get(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(decoded.foo.metric_b.get(), -<span class="number">42</span>);
+        <span class="macro">assert_eq!</span>(decoded.bar.count.get(), <span class="number">10</span>);
     }
 }
 </code></pre></div></section></main></body></html>
