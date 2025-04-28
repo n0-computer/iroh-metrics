@@ -74,7 +74,8 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
@@ -118,6 +119,7 @@
 
 <span class="doccomment">/// Potential errors from this library.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 </span><span class="kw">pub enum </span>Error {
     <span class="doccomment">/// Indicates that the metrics have not been enabled.
     </span><span class="attr">#[error(<span class="string">"Metrics not enabled"</span>)]
