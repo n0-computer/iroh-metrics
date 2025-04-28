@@ -32,7 +32,7 @@ unused-async = "warn"
 [dependencies]
 iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.1.0" }
 itoa = "1"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 thiserror = "2.0.6"
 tracing = "0.1"
 
@@ -47,6 +47,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 
 [dev-dependencies]
+postcard = { version = "1.1.1", features = ["use-std"] }
 tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macros", "time", "test-util"] }
 
 [features]

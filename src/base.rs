@@ -96,20 +96,22 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    use serde::{Deserialize, Serialize};
+
     use super::*;
     use crate::{iterable::Iterable, Counter, Gauge, MetricType, MetricsSource, Registry};
 
-    #[derive(Debug, Iterable)]
+    #[derive(Debug, Iterable, Serialize, Deserialize)]
     pub struct FooMetrics {
         pub metric_a: Counter,
-        pub metric_b: Counter,
+        pub metric_b: Gauge,
     }
 
     impl Default for FooMetrics {
         fn default() -> Self {
             Self {
                 metric_a: Counter::new(),
-                metric_b: Counter::new(),
+                metric_b: Gauge::new(),
             }
         }
     }
@@ -120,7 +122,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Default, Iterable)]
+    #[derive(Debug, Default, Iterable, Serialize, Deserialize)]
     pub struct BarMetrics {
         /// Bar Count
         pub count: Counter,
@@ -132,7 +134,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Default, Serialize, Deserialize)]
     struct CombinedMetrics {
         foo: Arc<FooMetrics>,
         bar: Arc<BarMetrics>,
@@ -170,7 +172,7 @@ mod tests {
         assert_eq!(items[0].r#type(), MetricType::Counter);
         assert_eq!(items[1].name(), "metric_b");
         assert_eq!(items[1].help(), "metric_b");
-        assert_eq!(items[1].r#type(), MetricType::Counter);
+        assert_eq!(items[1].r#type(), MetricType::Gauge);
 
         Ok(())
     }
@@ -199,8 +201,8 @@ mod tests {
 # TYPE foo_metric_a counter
 foo_metric_a_total 5
 # HELP foo_metric_b metric_b.
-# TYPE foo_metric_b counter
-foo_metric_b_total 2
+# TYPE foo_metric_b gauge
+foo_metric_b 2
 # EOF
 ";
         let enc = registry.encode_openmetrics_to_string()?;
@@ -212,6 +214,7 @@ foo_metric_b_total 2
     fn test_metric_sets() {
         let metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-42);
         metrics.bar.count.inc_by(10);
 
         // Using `iter` to iterate over all metrics in the group set.
@@ -222,7 +225,7 @@ foo_metric_b_total 2
             collected.collect::<Vec<_>>(),
             vec![
                 ("foo", "metric_a", "metric_a", 1.0),
-                ("foo", "metric_b", "metric_b", 0.0),
+                ("foo", "metric_b", "metric_b", -42.0),
                 ("bar", "count", "Bar Count", 10.0),
             ]
         );
@@ -232,16 +235,19 @@ foo_metric_b_total 2
         for group in metrics.groups() {
             for metric in group.iter() {
                 if let Some(counter) = metric.as_any().downcast_ref::<Counter>() {
-                    collected.push((group.name(), metric.name(), counter.get()));
+                    collected.push((group.name(), metric.name(), counter.value()));
+                }
+                if let Some(gauge) = metric.as_any().downcast_ref::<Gauge>() {
+                    collected.push((group.name(), metric.name(), gauge.value()));
                 }
             }
         }
         assert_eq!(
             collected,
             vec![
-                ("foo", "metric_a", 1),
-                ("foo", "metric_b", 0),
-                ("bar", "count", 10),
+                ("foo", "metric_a", MetricValue::Counter(1)),
+                ("foo", "metric_b", MetricValue::Gauge(-42)),
+                ("bar", "count", MetricValue::Counter(10)),
             ]
         );
 
@@ -253,8 +259,8 @@ foo_metric_b_total 2
 # TYPE boo_foo_metric_a counter
 boo_foo_metric_a_total 1
 # HELP boo_foo_metric_b metric_b.
-# TYPE boo_foo_metric_b counter
-boo_foo_metric_b_total 0
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
 # HELP boo_bar_count Bar Count.
 # TYPE boo_bar_count counter
 boo_bar_count_total 10
@@ -268,8 +274,8 @@ boo_bar_count_total 10
 # TYPE boo_foo_metric_a counter
 boo_foo_metric_a_total 1
 # HELP boo_foo_metric_b metric_b.
-# TYPE boo_foo_metric_b counter
-boo_foo_metric_b_total 0
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
 # HELP boo_bar_count Bar Count.
 # TYPE boo_bar_count counter
 boo_bar_count_total 10
@@ -277,8 +283,8 @@ boo_bar_count_total 10
 # TYPE combined_foo_metric_a counter
 combined_foo_metric_a_total{x="y"} 1
 # HELP combined_foo_metric_b metric_b.
-# TYPE combined_foo_metric_b counter
-combined_foo_metric_b_total{x="y"} 0
+# TYPE combined_foo_metric_b gauge
+combined_foo_metric_b{x="y"} -42
 # HELP combined_bar_count Bar Count.
 # TYPE combined_bar_count counter
 combined_bar_count_total{x="y"} 10
@@ -333,5 +339,18 @@ combined_bar_count_total{x="y"} 10
         assert_eq!(metrics.name(), "foo_metrics");
         let mut values = metrics.iter();
         assert!(values.next().is_none());
+    }
+
+    #[test]
+    fn test_serde() {
+        let metrics = CombinedMetrics::default();
+        metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-42);
+        metrics.bar.count.inc_by(10);
+        let encoded = postcard::to_stdvec(&metrics).unwrap();
+        let decoded: CombinedMetrics = postcard::from_bytes(&encoded).unwrap();
+        assert_eq!(decoded.foo.metric_a.get(), 1);
+        assert_eq!(decoded.foo.metric_b.get(), -42);
+        assert_eq!(decoded.bar.count.get(), 10);
     }
 }

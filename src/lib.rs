@@ -42,6 +42,7 @@ use std::collections::HashMap;
 
 /// Potential errors from this library.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// Indicates that the metrics have not been enabled.
     #[error("Metrics not enabled")]
