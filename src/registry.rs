@@ -20,7 +20,7 @@ pub struct Registry {
 impl Registry {
     /// Creates a subregistry where all metrics are prefixed with `prefix`.
     ///
-    /// Returns a mutable refernce to the subregistry.
+    /// Returns a mutable reference to the subregistry.
     pub fn sub_registry_with_prefix(&mut self, prefix: impl Into<Cow<'static, str>>) -> &mut Self {
         let prefix = self.prefix.to_owned().map(|p| p + "_").unwrap_or_default() + prefix.into();
         let sub_registry = Registry {
@@ -35,7 +35,7 @@ impl Registry {
 
     /// Creates a subregistry where all metrics are labeled.
     ///
-    /// Returns a mutable refernce to the subregistry.
+    /// Returns a mutable reference to the subregistry.
     pub fn sub_registry_with_labels(
         &mut self,
         labels: impl IntoIterator<Item = (impl Into<Cow<'static, str>>, impl Into<Cow<'static, str>>)>,
@@ -54,7 +54,7 @@ impl Registry {
 
     /// Creates a subregistry where all metrics have a `key=value` label.
     ///
-    /// Returns a mutable refernce to the subregistry.
+    /// Returns a mutable reference to the subregistry.
     pub fn sub_registry_with_label(
         &mut self,
         key: impl Into<Cow<'static, str>>,

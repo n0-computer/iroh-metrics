@@ -11,6 +11,7 @@
 //! # Example:
 //! ```rust
 //! use std::sync::Arc;
+//!
 //! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
 //!
 //! #[derive(Debug, Default, MetricsGroup)]
@@ -32,8 +33,9 @@
 
 use std::sync::OnceLock;
 
-use crate::{base::MetricsGroup, Error, Registry};
 use erased_set::ErasedSyncSet;
+
+use crate::{base::MetricsGroup, Error, Registry};
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();

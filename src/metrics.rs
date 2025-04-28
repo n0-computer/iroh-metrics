@@ -7,7 +7,6 @@
 //! and the structs don't collect actual data.
 
 use std::any::Any;
-
 #[cfg(feature = "metrics")]
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 

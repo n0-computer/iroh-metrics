@@ -1,5 +1,4 @@
-use std::any::Any;
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 use crate::{
     iterable::{FieldIter, IntoIterable, Iterable},
