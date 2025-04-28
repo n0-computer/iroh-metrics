@@ -3,21 +3,21 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
+pub use self::base::*;
+pub use self::metrics::*;
+pub use self::registry::*;
+
 mod base;
-pub use base::*;
-
-mod metrics;
-pub use metrics::*;
-
+pub(crate) mod encoding;
 pub mod iterable;
-
+mod metrics;
+mod registry;
+#[cfg(feature = "service")]
+pub mod service;
 #[cfg(feature = "static_core")]
 pub mod static_core;
 
-#[cfg(feature = "service")]
-pub mod service;
-
-/// Derives [`MetricsGroup`], [`Iterable`] and [`Default`] for a struct.
+/// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
 ///
@@ -48,6 +48,9 @@ pub enum Error {
     /// Indicates that the metrics have not been enabled.
     #[error("Metrics not enabled")]
     NoMetrics,
+    /// Writing the metrics to the output buffer failed.
+    #[error("Writing the metrics to the output buffer failed")]
+    Fmt(#[from] std::fmt::Error),
     /// Any IO related error.
     #[error("IO: {0}")]
     Io(#[from] std::io::Error),

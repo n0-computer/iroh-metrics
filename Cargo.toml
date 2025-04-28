@@ -30,12 +30,11 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
 unused-async = "warn"
 
 [dependencies]
+iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.1.0" }
+itoa = "1"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2.0.6"
 tracing = "0.1"
-
-# metrics feature
-prometheus-client = { version = "0.22", optional = true }
 
 # static_core feature
 erased_set = { version = "0.8", optional = true }
@@ -47,9 +46,6 @@ hyper-util = { version = "0.1.1", features = ["tokio"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 
-# derive feature
-iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.1.0" }
-
 [dev-dependencies]
 tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macros", "time", "test-util"] }
 
@@ -57,9 +53,7 @@ tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macr
 default = ["metrics"]
 # Enables counters and other metrics being tracked.
 # If disabled, all counters return 0. Macros like `inc!` will do nothing.
-metrics = [
-    "dep:prometheus-client",
-]
+metrics = []
 # Enables functionality to run a local metrics server that current metrics
 # are served at in prometheus format.
 # Pulls in quite a few libraries to make exposing an HTTP server possible.
