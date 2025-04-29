@@ -35,7 +35,7 @@ use std::sync::OnceLock;
 
 use erased_set::ErasedSyncSet;
 
-use crate::{base::MetricsGroup, Error, Registry};
+use crate::{Error, MetricsGroup, Registry};
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
