@@ -48,7 +48,9 @@ pub struct GlobalRegistry;
 
 impl crate::MetricsSource for GlobalRegistry {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        let core = crate::static_core::Core::get().ok_or(Error::NoMetrics)?;
+        let core = crate::static_core::Core::get().ok_or(Error::NoMetrics {
+            backtrace: Some(snafu::Backtrace::capture()),
+        })?;
         core.registry.encode_openmetrics(writer)
     }
 }
