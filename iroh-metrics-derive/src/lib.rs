@@ -31,8 +31,13 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
     for (i, field) in fields.iter().enumerate() {
         let ident = field.ident.as_ref().unwrap();
         let ident_str = ident.to_string();
+        let attr = parse_metrics_attr(&field.attrs)?;
+        let help = attr
+            .help
+            .or_else(|| parse_doc_first_line(&field.attrs))
+            .unwrap_or_else(|| ident_str.clone());
         match_arms.extend(quote! {
-            #i => Some((#ident_str, &self.#ident as &dyn ::iroh_metrics::Metric)),
+            #i => Some(::iroh_metrics::MetricItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::Metric)),
         });
     }
 
@@ -42,7 +47,7 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
                 #count
             }
 
-            fn field_ref(&self, n: usize) -> Option<(&'static str, &dyn ::iroh_metrics::Metric)> {
+            fn field_ref(&self, n: usize) -> Option<::iroh_metrics::MetricItem<'_>> {
                 match n {
                     #match_arms
                     _ => None,
@@ -53,37 +58,13 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
 }
 
 fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
-    let (name, fields) = parse_named_struct(input)?;
-
-    let mut field_defaults = quote! {};
-    for field in fields {
-        let field_name = field.ident.as_ref().unwrap();
-        let ty = &field.ty;
-        let attr = parse_metrics_attr(&field.attrs)?;
-        let help = attr
-            .help
-            .or_else(|| parse_doc_first_line(&field.attrs))
-            .unwrap_or_else(|| field_name.to_string());
-
-        field_defaults.extend(quote! {
-            #field_name: #ty::new(#help),
-        });
-    }
-
+    let (name, _fields) = parse_named_struct(input)?;
     let attr = parse_metrics_attr(&input.attrs)?;
     let name_str = attr
         .name
         .unwrap_or_else(|| name.to_string().to_snake_case());
 
     Ok(quote! {
-        impl ::std::default::Default for #name {
-            fn default() -> Self {
-                Self {
-                    #field_defaults
-                }
-            }
-        }
-
         impl ::iroh_metrics::MetricsGroup for #name {
             fn name(&self) -> &'static str {
                 #name_str

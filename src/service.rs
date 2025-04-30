@@ -8,28 +8,12 @@ use std::{
 };
 
 use hyper::{service::service_fn, Request, Response};
-use prometheus_client::registry::Registry;
 use tokio::{io::AsyncWriteExt as _, net::TcpListener};
 use tracing::{debug, error, info, warn};
 
-use crate::{parse_prometheus_metrics, Error};
+use crate::{parse_prometheus_metrics, Error, MetricsSource, Registry};
 
 type BytesBody = http_body_util::Full<hyper::body::Bytes>;
-
-/// Helper trait to abstract over different ways to access metrics.
-pub trait MetricsSource: Send + 'static {
-    /// Encodes all metrics into a string in the Open Metrics text format.
-    fn encode_openmetrics(&self) -> Result<String, Error>;
-}
-
-impl MetricsSource for Registry {
-    fn encode_openmetrics(&self) -> Result<String, Error> {
-        let mut buf = String::new();
-        prometheus_client::encoding::text::encode(&mut buf, self)
-            .expect("writing to string always works");
-        Ok(buf)
-    }
-}
 
 /// A cloneable [`Registry`] in a read-write lock.
 ///
@@ -38,15 +22,15 @@ impl MetricsSource for Registry {
 pub type RwLockRegistry = Arc<RwLock<Registry>>;
 
 impl MetricsSource for RwLockRegistry {
-    fn encode_openmetrics(&self) -> Result<String, Error> {
+    fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
         let inner = self.read().expect("poisoned");
-        inner.encode_openmetrics()
+        inner.encode_openmetrics(writer)
     }
 }
 
 impl MetricsSource for Arc<Registry> {
-    fn encode_openmetrics(&self) -> Result<String, Error> {
-        Arc::deref(self).encode_openmetrics()
+    fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
+        Arc::deref(self).encode_openmetrics(writer)
     }
 }
 
@@ -101,7 +85,10 @@ pub async fn start_metrics_dumper(
 }
 
 /// Start a metrics exporter service.
-pub async fn start_metrics_exporter(cfg: MetricsExporterConfig, registry: impl MetricsSource) {
+pub async fn start_metrics_exporter(
+    cfg: MetricsExporterConfig,
+    registry: impl MetricsSource,
+) -> Result<(), Error> {
     let MetricsExporterConfig {
         interval,
         endpoint,
@@ -117,13 +104,7 @@ pub async fn start_metrics_exporter(cfg: MetricsExporterConfig, registry: impl M
     );
     loop {
         tokio::time::sleep(interval).await;
-        let buf = match registry.encode_openmetrics() {
-            Ok(buf) => buf,
-            Err(err) => {
-                tracing::warn!("Failed to encode metrics: {err:#}");
-                break;
-            }
-        };
+        let buf = registry.encode_openmetrics_to_string()?;
         let mut req = push_client.post(&prom_gateway_uri);
         if let Some(username) = username.clone() {
             req = req.basic_auth(username, Some(password.clone()));
@@ -154,7 +135,7 @@ async fn handler(
     _req: Request<hyper::body::Incoming>,
     registry: impl MetricsSource,
 ) -> Result<Response<BytesBody>, Error> {
-    let content = registry.encode_openmetrics()?;
+    let content = registry.encode_openmetrics_to_string()?;
     let response = Response::builder()
         .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
         .body(body_full(content))
@@ -175,7 +156,7 @@ async fn dump_metrics(
     registry: &impl MetricsSource,
     write_header: bool,
 ) -> Result<(), Error> {
-    let m = registry.encode_openmetrics()?;
+    let m = registry.encode_openmetrics_to_string()?;
     let m = parse_prometheus_metrics(&m);
     let time_since_start = start.elapsed().as_millis() as f64;
 

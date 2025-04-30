@@ -10,32 +10,20 @@
 //!
 //! # Example:
 //! ```rust
-//! use iroh_metrics::{inc, inc_by, iterable::Iterable, static_core::Core, Counter, MetricsGroup};
+//! use std::sync::Arc;
 //!
-//! #[derive(Debug, Clone, Iterable)]
+//! use iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
+//!
+//! #[derive(Debug, Default, MetricsGroup)]
+//! #[metrics(name = "my_metrics")]
 //! pub struct Metrics {
+//!     /// things_added tracks the number of things we have added
 //!     pub things_added: Counter,
 //! }
 //!
-//! impl Default for Metrics {
-//!     fn default() -> Self {
-//!         Self {
-//!             things_added: Counter::new(
-//!                 "things_added tracks the number of things we have added",
-//!             ),
-//!         }
-//!     }
-//! }
-//!
-//! impl MetricsGroup for Metrics {
-//!     fn name(&self) -> &'static str {
-//!         "my_metrics"
-//!     }
-//! }
-//!
 //! Core::init(|reg, metrics| {
-//!     let m = Metrics::default();
-//!     m.register(reg);
+//!     let m = Arc::new(Metrics::default());
+//!     reg.register(m.clone());
 //!     metrics.insert(m);
 //! });
 //!
@@ -46,10 +34,8 @@
 use std::sync::OnceLock;
 
 use erased_set::ErasedSyncSet;
-#[cfg(feature = "metrics")]
-use prometheus_client::{encoding::text::encode, registry::Registry};
 
-use crate::base::MetricsGroup;
+use crate::{base::MetricsGroup, Error, Registry};
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
@@ -60,11 +46,10 @@ type Registry = ();
 #[derive(Clone, Copy, Debug)]
 pub struct GlobalRegistry;
 
-#[cfg(feature = "service")]
-impl crate::service::MetricsSource for GlobalRegistry {
-    fn encode_openmetrics(&self) -> Result<String, crate::Error> {
-        let core = crate::static_core::Core::get().ok_or(crate::Error::NoMetrics)?;
-        Ok(core.encode())
+impl crate::MetricsSource for GlobalRegistry {
+    fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
+        let core = crate::static_core::Core::get().ok_or(Error::NoMetrics)?;
+        core.registry.encode_openmetrics(writer)
     }
 }
 
@@ -123,10 +108,12 @@ impl Core {
     /// Encodes the current metrics registry to a string in
     /// the prometheus text exposition format.
     #[cfg(feature = "metrics")]
-    pub fn encode(&self) -> String {
-        let mut buf = String::new();
-        encode(&mut buf, &self.registry).expect("writing to string always works");
-        buf
+    pub fn encode_openmetrics(&self) -> String {
+        use crate::MetricsSource;
+
+        self.registry()
+            .encode_openmetrics_to_string()
+            .expect("encoding to string never fails")
     }
 }
 

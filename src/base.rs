@@ -1,83 +1,61 @@
-use std::any::Any;
-
-#[cfg(feature = "metrics")]
-pub use prometheus_client::registry::Registry;
+use std::{any::Any, sync::Arc};
 
 use crate::{
     iterable::{FieldIter, IntoIterable, Iterable},
-    Metric,
+    Metric, MetricType, MetricValue,
 };
 
 /// Trait for structs containing metric items.
 pub trait MetricsGroup:
     Any + Iterable + IntoIterable + std::fmt::Debug + 'static + Send + Sync
 {
-    /// Registers all metric items in this metrics group to a [`prometheus_client::registry::Registry`].
-    #[cfg(feature = "metrics")]
-    fn register(&self, registry: &mut prometheus_client::registry::Registry) {
-        use crate::{Counter, Gauge};
-        let sub_registry = registry.sub_registry_with_prefix(self.name());
-        for item in self.iter() {
-            // Remove trailing dot, becausse `Registry::register` adds it automatically.
-            let help = item.help().trim_end_matches('.');
-            if let Some(counter) = item.as_any().downcast_ref::<Counter>() {
-                sub_registry.register(item.name(), help, counter.counter.clone());
-            }
-            if let Some(gauge) = item.as_any().downcast_ref::<Gauge>() {
-                sub_registry.register(item.name(), help, gauge.gauge.clone());
-            }
-        }
-    }
-
     /// Returns the name of this metrics group.
     fn name(&self) -> &'static str;
 
     /// Returns an iterator over all metric items with their values and helps.
-    fn iter(&self) -> MetricsIter {
-        MetricsIter {
-            inner: self.field_iter(),
-        }
-    }
-}
-
-/// Iterator over metric items.
-///
-/// Returned from [`MetricsGroup::iter`].
-#[derive(Debug)]
-pub struct MetricsIter<'a> {
-    inner: FieldIter<'a>,
-}
-
-impl<'a> Iterator for MetricsIter<'a> {
-    type Item = MetricItem<'a>;
-    fn next(&mut self) -> Option<Self::Item> {
-        let (name, metric) = self.inner.next()?;
-        Some(MetricItem { name, metric })
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
+    fn iter(&self) -> FieldIter {
+        self.field_iter()
     }
 }
 
 /// A metric item with its current value.
+///
+/// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetricItem<'a> {
     name: &'static str,
+    help: &'static str,
     metric: &'a dyn Metric,
 }
 
-impl MetricItem<'_> {
+impl<'a> MetricItem<'a> {
+    /// Returns a new metric item.
+    pub fn new(name: &'static str, help: &'static str, metric: &'a dyn Metric) -> Self {
+        Self { name, help, metric }
+    }
     /// Returns the name of this metric item.
     pub fn name(&self) -> &'static str {
         self.name
     }
-}
 
-impl<'a> std::ops::Deref for MetricItem<'a> {
-    type Target = &'a dyn Metric;
-    fn deref(&self) -> &Self::Target {
-        &self.metric
+    /// Returns the help of this metric item.
+    pub fn help(&self) -> &'static str {
+        self.help
+    }
+
+    /// Returns the [`MetricType`] for this item.
+    pub fn r#type(&self) -> MetricType {
+        self.metric.r#type()
+    }
+
+    /// Returns the current value of this item.
+    pub fn value(&self) -> MetricValue {
+        self.metric.value()
+    }
+
+    /// Returns the inner metric as [`Any`], for further downcasting to concrete metric types.
+    pub fn as_any(&self) -> &dyn Any {
+        self.metric.as_any()
     }
 }
 
@@ -86,23 +64,18 @@ pub trait MetricsGroupSet {
     /// Returns the name of this metrics group set.
     fn name(&self) -> &'static str;
 
+    /// Returns an iterator over owned clones of the [`MetricsGroup`] in this struct.
+    fn groups_cloned(&self) -> impl Iterator<Item = Arc<dyn MetricsGroup>>;
+
+    /// Returns an iterator over references to the [`MetricsGroup`] in this struct.
+    fn groups(&self) -> impl Iterator<Item = &dyn MetricsGroup>;
+
     /// Returns an iterator over all metrics in this metrics group set.
     ///
     /// The iterator yields tuples of `(&str, MetricItem)`. The `&str` is the group name.
-    fn iter(&self) -> impl Iterator<Item = (&'static str, MetricItem<'_>)> {
+    fn iter(&self) -> impl Iterator<Item = (&'static str, MetricItem<'_>)> + '_ {
         self.groups()
             .flat_map(|group| group.iter().map(|item| (group.name(), item)))
-    }
-
-    /// Returns an iterator over the [`MetricsGroup`] in this struct.
-    fn groups(&self) -> impl Iterator<Item = &dyn MetricsGroup>;
-
-    /// Register all metrics groups in this set onto a prometheus client registry.
-    #[cfg(feature = "metrics")]
-    fn register(&self, registry: &mut prometheus_client::registry::Registry) {
-        for group in self.groups() {
-            group.register(registry)
-        }
     }
 }
 
@@ -114,7 +87,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let counter = Counter::new("foo");
+        let counter = Counter::new();
         counter.inc();
         assert_eq!(counter.get(), 0);
     }
@@ -123,20 +96,22 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
-    use super::*;
-    use crate::{iterable::Iterable, Counter, Gauge, MetricType};
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone, Iterable)]
+    use super::*;
+    use crate::{iterable::Iterable, Counter, Gauge, MetricType, MetricsSource, Registry};
+
+    #[derive(Debug, Iterable, Serialize, Deserialize)]
     pub struct FooMetrics {
         pub metric_a: Counter,
-        pub metric_b: Counter,
+        pub metric_b: Gauge,
     }
 
     impl Default for FooMetrics {
         fn default() -> Self {
             Self {
-                metric_a: Counter::new("metric_a"),
-                metric_b: Counter::new("metric_b"),
+                metric_a: Counter::new(),
+                metric_b: Gauge::new(),
             }
         }
     }
@@ -147,17 +122,10 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Clone, Iterable)]
+    #[derive(Debug, Default, Iterable, Serialize, Deserialize)]
     pub struct BarMetrics {
+        /// Bar Count
         pub count: Counter,
-    }
-
-    impl Default for BarMetrics {
-        fn default() -> Self {
-            Self {
-                count: Counter::new("Bar Count"),
-            }
-        }
     }
 
     impl MetricsGroup for BarMetrics {
@@ -166,10 +134,10 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Clone, Default)]
+    #[derive(Debug, Default, Serialize, Deserialize)]
     struct CombinedMetrics {
-        foo: FooMetrics,
-        bar: BarMetrics,
+        foo: Arc<FooMetrics>,
+        bar: Arc<BarMetrics>,
     }
 
     impl MetricsGroupSet for CombinedMetrics {
@@ -177,10 +145,18 @@ mod tests {
             "combined"
         }
 
+        fn groups_cloned(&self) -> impl Iterator<Item = Arc<dyn MetricsGroup>> {
+            [
+                self.foo.clone() as Arc<dyn MetricsGroup>,
+                self.bar.clone() as Arc<dyn MetricsGroup>,
+            ]
+            .into_iter()
+        }
+
         fn groups(&self) -> impl Iterator<Item = &dyn MetricsGroup> {
             [
-                &self.foo as &dyn MetricsGroup,
-                &self.bar as &dyn MetricsGroup,
+                &*self.foo as &dyn MetricsGroup,
+                &*self.bar as &dyn MetricsGroup,
             ]
             .into_iter()
         }
@@ -196,18 +172,16 @@ mod tests {
         assert_eq!(items[0].r#type(), MetricType::Counter);
         assert_eq!(items[1].name(), "metric_b");
         assert_eq!(items[1].help(), "metric_b");
-        assert_eq!(items[1].r#type(), MetricType::Counter);
+        assert_eq!(items[1].r#type(), MetricType::Gauge);
 
         Ok(())
     }
 
     #[test]
     fn test_solo_registry() -> Result<(), Box<dyn std::error::Error>> {
-        use prometheus_client::{encoding::text::encode, registry::Registry};
-
         let mut registry = Registry::default();
-        let metrics = FooMetrics::default();
-        metrics.register(&mut registry);
+        let metrics = Arc::new(FooMetrics::default());
+        registry.register(metrics.clone());
 
         metrics.metric_a.inc();
         metrics.metric_b.inc_by(2);
@@ -227,23 +201,20 @@ mod tests {
 # TYPE foo_metric_a counter
 foo_metric_a_total 5
 # HELP foo_metric_b metric_b.
-# TYPE foo_metric_b counter
-foo_metric_b_total 2
+# TYPE foo_metric_b gauge
+foo_metric_b 2
 # EOF
 ";
-        let mut enc = String::new();
-        encode(&mut enc, &registry).expect("writing to string always works");
-
+        let enc = registry.encode_openmetrics_to_string()?;
         assert_eq!(enc, exp);
         Ok(())
     }
 
     #[test]
     fn test_metric_sets() {
-        use prometheus_client::{encoding::text::encode, registry::Registry};
-
         let metrics = CombinedMetrics::default();
         metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-42);
         metrics.bar.count.inc_by(10);
 
         // Using `iter` to iterate over all metrics in the group set.
@@ -254,7 +225,7 @@ foo_metric_b_total 2
             collected.collect::<Vec<_>>(),
             vec![
                 ("foo", "metric_a", "metric_a", 1.0),
-                ("foo", "metric_b", "metric_b", 0.0),
+                ("foo", "metric_b", "metric_b", -42.0),
                 ("bar", "count", "Bar Count", 10.0),
             ]
         );
@@ -264,45 +235,70 @@ foo_metric_b_total 2
         for group in metrics.groups() {
             for metric in group.iter() {
                 if let Some(counter) = metric.as_any().downcast_ref::<Counter>() {
-                    collected.push((group.name(), metric.name(), counter.get()));
+                    collected.push((group.name(), metric.name(), counter.value()));
+                }
+                if let Some(gauge) = metric.as_any().downcast_ref::<Gauge>() {
+                    collected.push((group.name(), metric.name(), gauge.value()));
                 }
             }
         }
         assert_eq!(
             collected,
             vec![
-                ("foo", "metric_a", 1),
-                ("foo", "metric_b", 0),
-                ("bar", "count", 10),
+                ("foo", "metric_a", MetricValue::Counter(1)),
+                ("foo", "metric_b", MetricValue::Gauge(-42)),
+                ("bar", "count", MetricValue::Counter(10)),
             ]
         );
 
-        // automatic collection and encoding with prometheus_client
+        // automatic collection and encoding with a registry
         let mut registry = Registry::default();
-        let sub = registry.sub_registry_with_prefix("combined");
-        metrics.register(sub);
-        let exp = "# HELP combined_foo_metric_a metric_a.
-# TYPE combined_foo_metric_a counter
-combined_foo_metric_a_total 1
-# HELP combined_foo_metric_b metric_b.
-# TYPE combined_foo_metric_b counter
-combined_foo_metric_b_total 0
-# HELP combined_bar_count Bar Count.
-# TYPE combined_bar_count counter
-combined_bar_count_total 10
+        let sub = registry.sub_registry_with_prefix("boo");
+        sub.register_all(&metrics);
+        let exp = "# HELP boo_foo_metric_a metric_a.
+# TYPE boo_foo_metric_a counter
+boo_foo_metric_a_total 1
+# HELP boo_foo_metric_b metric_b.
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
+# HELP boo_bar_count Bar Count.
+# TYPE boo_bar_count counter
+boo_bar_count_total 10
 # EOF
 ";
-        let mut enc = String::new();
-        encode(&mut enc, &registry).expect("writing to string always works");
+        assert_eq!(registry.encode_openmetrics_to_string().unwrap(), exp);
 
-        assert_eq!(enc, exp);
+        let sub = registry.sub_registry_with_labels([("x", "y")]);
+        sub.register_all_prefixed(&metrics);
+        let exp = r#"# HELP boo_foo_metric_a metric_a.
+# TYPE boo_foo_metric_a counter
+boo_foo_metric_a_total 1
+# HELP boo_foo_metric_b metric_b.
+# TYPE boo_foo_metric_b gauge
+boo_foo_metric_b -42
+# HELP boo_bar_count Bar Count.
+# TYPE boo_bar_count counter
+boo_bar_count_total 10
+# HELP combined_foo_metric_a metric_a.
+# TYPE combined_foo_metric_a counter
+combined_foo_metric_a_total{x="y"} 1
+# HELP combined_foo_metric_b metric_b.
+# TYPE combined_foo_metric_b gauge
+combined_foo_metric_b{x="y"} -42
+# HELP combined_bar_count Bar Count.
+# TYPE combined_bar_count counter
+combined_bar_count_total{x="y"} 10
+# EOF
+"#;
+
+        assert_eq!(registry.encode_openmetrics_to_string().unwrap(), exp);
     }
 
     #[test]
     fn test_derive() {
         use crate::{MetricValue, MetricsGroup};
 
-        #[derive(Debug, Clone, MetricsGroup)]
+        #[derive(Debug, Default, MetricsGroup)]
         #[metrics(name = "my-metrics")]
         struct Metrics {
             /// Counts foos
@@ -337,11 +333,24 @@ combined_bar_count_total 10
         assert_eq!(baz.name(), "baz");
         assert_eq!(baz.help(), "Measures baz");
 
-        #[derive(Debug, Clone, MetricsGroup)]
+        #[derive(Debug, Default, MetricsGroup)]
         struct FooMetrics {}
         let metrics = FooMetrics::default();
         assert_eq!(metrics.name(), "foo_metrics");
         let mut values = metrics.iter();
         assert!(values.next().is_none());
+    }
+
+    #[test]
+    fn test_serde() {
+        let metrics = CombinedMetrics::default();
+        metrics.foo.metric_a.inc();
+        metrics.foo.metric_b.set(-42);
+        metrics.bar.count.inc_by(10);
+        let encoded = postcard::to_stdvec(&metrics).unwrap();
+        let decoded: CombinedMetrics = postcard::from_bytes(&encoded).unwrap();
+        assert_eq!(decoded.foo.metric_a.get(), 1);
+        assert_eq!(decoded.foo.metric_b.get(), -42);
+        assert_eq!(decoded.bar.count.get(), 10);
     }
 }

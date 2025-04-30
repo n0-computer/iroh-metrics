@@ -11,14 +11,14 @@ use std::fmt;
 /// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
 pub use iroh_metrics_derive::Iterable;
 
-use crate::Metric;
+use crate::MetricItem;
 
 /// Trait for iterating over the fields of a struct.
 pub trait Iterable {
     /// Returns the number of fields in the struct.
     fn field_count(&self) -> usize;
     /// Returns the field name and dyn reference to the field.
-    fn field_ref(&self, n: usize) -> Option<(&'static str, &dyn Metric)>;
+    fn field_ref(&self, n: usize) -> Option<MetricItem<'_>>;
 }
 
 /// Helper trait to convert from `self` to `dyn Iterable`.
@@ -61,7 +61,7 @@ impl<'a> FieldIter<'a> {
     }
 }
 impl<'a> Iterator for FieldIter<'a> {
-    type Item = (&'static str, &'a dyn Metric);
+    type Item = MetricItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos == self.inner.field_count() {
