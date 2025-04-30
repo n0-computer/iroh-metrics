@@ -164,9 +164,7 @@
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
 <a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
+<a href="#166" id="166">166</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
 //!
 //! Enables and manages a global registry of metrics.
 //! Divided up into modules, each module has its own metrics.
@@ -203,7 +201,7 @@
 
 <span class="kw">use </span>erased_set::ErasedSyncSet;
 
-<span class="kw">use crate</span>::{Error, MetricsGroup, Registry};
+<span class="kw">use crate</span>::{Error, MetricsGroup, NoMetricsSnafu, Registry};
 
 <span class="attr">#[cfg(not(feature = <span class="string">"metrics"</span>))]
 </span><span class="kw">type </span>Registry = ();
@@ -216,9 +214,7 @@
 
 <span class="kw">impl </span><span class="kw">crate</span>::MetricsSource <span class="kw">for </span>GlobalRegistry {
     <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>, writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>std::fmt::Write) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-        <span class="kw">let </span>core = <span class="kw">crate</span>::static_core::Core::get().ok_or(Error::NoMetrics {
-            backtrace: <span class="prelude-val">Some</span>(snafu::Backtrace::capture()),
-        })<span class="question-mark">?</span>;
+        <span class="kw">let </span>core = <span class="kw">crate</span>::static_core::Core::get().ok_or(NoMetricsSnafu.build())<span class="question-mark">?</span>;
         core.registry.encode_openmetrics(writer)
     }
 }
