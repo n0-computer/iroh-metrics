@@ -35,7 +35,7 @@ use std::sync::OnceLock;
 
 use erased_set::ErasedSyncSet;
 
-use crate::{base::MetricsGroup, Error, Registry};
+use crate::{Error, MetricsGroup, NoMetricsSnafu, Registry};
 
 #[cfg(not(feature = "metrics"))]
 type Registry = ();
@@ -48,7 +48,7 @@ pub struct GlobalRegistry;
 
 impl crate::MetricsSource for GlobalRegistry {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        let core = crate::static_core::Core::get().ok_or(Error::NoMetrics)?;
+        let core = crate::static_core::Core::get().ok_or(NoMetricsSnafu.build())?;
         core.registry.encode_openmetrics(writer)
     }
 }
