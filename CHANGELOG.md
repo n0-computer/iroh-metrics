@@ -2,6 +2,27 @@
 
 All notable changes to iroh will be documented in this file.
 
+## [0.34.0](https://github.com/n0-computer/iroh-metrics/compare/v0.33.0..0.34.0) - 2025-04-30
+
+### ⛰️  Features
+
+- Add derive for `MetricsGroupSet` ([#23](https://github.com/n0-computer/iroh-metrics/issues/23)) - ([ab86735](https://github.com/n0-computer/iroh-metrics/commit/ab867357ffd846bb2281685a4e1c9556dce847f8))
+
+### 🚜 Refactor
+
+- [**breaking**] Make metrics raw atomics, remove `prometheus_client` dependency ([#22](https://github.com/n0-computer/iroh-metrics/issues/22)) - ([27fb9b5](https://github.com/n0-computer/iroh-metrics/commit/27fb9b556bfb84a79841d98f10f978f1640d9e76))
+- [**breaking**] Replace thiserror with snafu ([#24](https://github.com/n0-computer/iroh-metrics/issues/24)) - ([a589407](https://github.com/n0-computer/iroh-metrics/commit/a589407937d851c5e9424431b86eee24e3dddd93))
+
+### ⚙️ Miscellaneous Tasks
+
+- Add ignore to deny.toml ([#25](https://github.com/n0-computer/iroh-metrics/issues/25)) - ([55b432d](https://github.com/n0-computer/iroh-metrics/commit/55b432dc3bc31722501ddf5e30105db9db286d0b))
+
+## [0.33.0](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.1.0..v0.33.0) - 2025-04-16
+
+### ⚙️ Miscellaneous Tasks
+
+- Release - ([c467cfe](https://github.com/n0-computer/iroh-metrics/commit/c467cfe9c37b1f79702e3ae7d5d82d9588ac51b6))
+
 ## [iroh-metrics-derive-v0.1.0](https://github.com/n0-computer/iroh-metrics/compare/v0.32.0..iroh-metrics-derive-v0.1.0) - 2025-04-16
 
 ### 🐛 Bug Fixes
