@@ -22,6 +22,14 @@ pub fn derive_iterable(input: TokenStream) -> TokenStream {
     out.into()
 }
 
+#[proc_macro_derive(MetricsGroupSet, attributes(metrics))]
+pub fn derive_metrics_group_set(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let mut out = proc_macro2::TokenStream::new();
+    out.extend(expand_metrics_group_set(&input).unwrap_or_else(Error::into_compile_error));
+    out.into()
+}
+
 fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
     let (name, fields) = parse_named_struct(input)?;
 
@@ -68,6 +76,42 @@ fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error
         impl ::iroh_metrics::MetricsGroup for #name {
             fn name(&self) -> &'static str {
                 #name_str
+            }
+        }
+    })
+}
+
+fn expand_metrics_group_set(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
+    let (name, fields) = parse_named_struct(input)?;
+    let attr = parse_metrics_attr(&input.attrs)?;
+    let name_str = attr
+        .name
+        .unwrap_or_else(|| name.to_string().to_snake_case());
+
+    let mut cloned = quote! {};
+    let mut refs = quote! {};
+    for field in fields {
+        let name = field.ident.as_ref().unwrap();
+        cloned.extend(quote! {
+            self.#name.clone() as ::std::sync::Arc<dyn ::iroh_metrics::MetricsGroup>,
+        });
+        refs.extend(quote! {
+            &*self.#name as &dyn ::iroh_metrics::MetricsGroup,
+        });
+    }
+
+    Ok(quote! {
+        impl ::iroh_metrics::MetricsGroupSet for #name {
+            fn name(&self) -> &'static str {
+                #name_str
+            }
+
+            fn groups_cloned(&self) -> impl ::std::iter::Iterator<Item = ::std::sync::Arc<dyn ::iroh_metrics::MetricsGroup>> {
+                [#cloned].into_iter()
+            }
+
+            fn groups(&self) -> impl ::std::iter::Iterator<Item = &dyn ::iroh_metrics::MetricsGroup> {
+                [#refs].into_iter()
             }
         }
     })
