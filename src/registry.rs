@@ -85,13 +85,13 @@ impl Registry {
     ///
     /// Note that this does not add the EOF marker to the output. Use [`encode_openmetrics_eof`]
     /// to do that.
-    pub fn encode_openmetrics(&self, writer: &mut impl Write) -> fmt::Result {
+    pub fn encode_openmetrics_to_writer(&self, writer: &mut impl Write) -> fmt::Result {
         for group in &self.metrics {
             group.encode_openmetrics(writer, self.prefix.as_deref(), &self.labels)?;
         }
 
         for sub in self.sub_registries.iter() {
-            sub.encode_openmetrics(writer)?;
+            sub.encode_openmetrics_to_writer(writer)?;
         }
         Ok(())
     }
@@ -119,7 +119,7 @@ pub trait MetricsSource: Send + 'static {
 
 impl MetricsSource for Registry {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        self.encode_openmetrics(writer)?;
+        self.encode_openmetrics_to_writer(writer)?;
         write_eof(writer)?;
         Ok(())
     }
