@@ -83,8 +83,8 @@ impl Registry {
 
     /// Encodes all metrics in the OpenMetrics text format.
     ///
-    /// Note that this does not add the EOF marker to the output. Use [`encode_openmetrics_eof`]
-    /// to do that.
+    /// This does not write the terminal `# EOF\n` string to `writer`.
+    /// You can use [`encode_openmetrics_eof`] to do that.
     pub fn encode_openmetrics_to_writer(&self, writer: &mut impl Write) -> fmt::Result {
         for group in &self.metrics {
             group.encode_openmetrics(writer, self.prefix.as_deref(), &self.labels)?;
@@ -107,9 +107,14 @@ pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
 /// Helper trait to abstract over different ways to access metrics.
 pub trait MetricsSource: Send + 'static {
     /// Encodes all metrics into a string in the OpenMetrics text format.
+    ///
+    /// This is expected to also write the terminal `# EOF\n` string expected
+    /// by the OpenMetrics format.
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error>;
 
     /// Encodes the metrics in the OpenMetrics text format into a newly allocated string.
+    ///
+    /// See also [`Self::encode_openmetrics`].
     fn encode_openmetrics_to_string(&self) -> Result<String, Error> {
         let mut s = String::new();
         self.encode_openmetrics(&mut s)?;
