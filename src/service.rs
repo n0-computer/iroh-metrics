@@ -2,7 +2,6 @@
 
 use std::{
     net::SocketAddr,
-    ops::Deref,
     sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
@@ -24,13 +23,13 @@ pub type RwLockRegistry = Arc<RwLock<Registry>>;
 impl MetricsSource for RwLockRegistry {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
         let inner = self.read().expect("poisoned");
-        inner.encode_openmetrics(writer)
+        <Registry as MetricsSource>::encode_openmetrics(&inner, writer)
     }
 }
 
 impl MetricsSource for Arc<Registry> {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        Arc::deref(self).encode_openmetrics(writer)
+        <Registry as MetricsSource>::encode_openmetrics(self, writer)
     }
 }
 
