@@ -211,13 +211,13 @@
     ///
     /// Note that this does not add the EOF marker to the output. Use [`encode_openmetrics_eof`]
     /// to do that.
-    </span><span class="kw">pub fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>, writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write) -&gt; fmt::Result {
+    </span><span class="kw">pub fn </span>encode_openmetrics_to_writer(<span class="kw-2">&amp;</span><span class="self">self</span>, writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write) -&gt; fmt::Result {
         <span class="kw">for </span>group <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.metrics {
             group.encode_openmetrics(writer, <span class="self">self</span>.prefix.as_deref(), <span class="kw-2">&amp;</span><span class="self">self</span>.labels)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>sub <span class="kw">in </span><span class="self">self</span>.sub_registries.iter() {
-            sub.encode_openmetrics(writer)<span class="question-mark">?</span>;
+            sub.encode_openmetrics_to_writer(writer)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -245,7 +245,7 @@
 
 <span class="kw">impl </span>MetricsSource <span class="kw">for </span>Registry {
     <span class="kw">fn </span>encode_openmetrics(<span class="kw-2">&amp;</span><span class="self">self</span>, writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>std::fmt::Write) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-        <span class="self">self</span>.encode_openmetrics(writer)<span class="question-mark">?</span>;
+        <span class="self">self</span>.encode_openmetrics_to_writer(writer)<span class="question-mark">?</span>;
         write_eof(writer)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
