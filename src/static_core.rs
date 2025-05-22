@@ -86,7 +86,7 @@ impl Core {
             #[cfg(feature = "metrics")]
             registry,
         })
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "already set"))
+        .map_err(|_| std::io::Error::other("already set"))
     }
 
     /// Returns a reference to the core metrics.
