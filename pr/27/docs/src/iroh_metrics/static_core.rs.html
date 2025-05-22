@@ -252,7 +252,7 @@
             <span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
             </span>registry,
         })
-        .map_err(|<span class="kw">_</span>| std::io::Error::new(std::io::ErrorKind::Other, <span class="string">"already set"</span>))
+        .map_err(|<span class="kw">_</span>| std::io::Error::other(<span class="string">"already set"</span>))
     }
 
     <span class="doccomment">/// Returns a reference to the core metrics.
