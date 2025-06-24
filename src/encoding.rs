@@ -2,8 +2,6 @@
 //!
 //! [OpenMetrics text format]: https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md
 
-#![allow(missing_docs)]
-
 use std::{
     borrow::Cow,
     fmt::{self, Write},
@@ -20,39 +18,68 @@ pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
+/// Schema information for a single metric item.
+///
+/// Contains metadata about a metric including its type, name, help text,
+/// prefixes, and labels.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ItemSchema {
+    /// The type of the metric (Counter, Gauge, etc.)
     pub r#type: MetricType,
+    /// The name of the metric
     pub name: String,
+    /// Help text describing the metric
     pub help: String,
+    /// Prefixes to prepend to the metric name
     pub prefixes: Vec<String>,
+    /// Labels associated with the metric as key-value pairs
     pub labels: Vec<(String, String)>,
 }
 
+/// A collection of metric schemas.
+///
+/// Contains all the schema information for a set of metrics.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Schema {
+    /// The individual metric schemas
     pub items: Vec<ItemSchema>,
 }
 
+/// A collection of metric values.
+///
+/// Contains the actual values for a set of metrics.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Values {
+    /// The individual metric values
     pub items: Vec<MetricValue>,
 }
 
+/// An update containing schema and/or values for metrics.
+///
+/// Used to transfer metric information between encoders and decoders.
+/// The schema is optional and only included when it has changed.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Update {
+    /// Optional schema information (included when schema changes)
     pub schema: Option<Schema>,
+    /// The metric values
     pub values: Values,
 }
 
+/// A metric item combining schema and value information.
+///
+/// Provides a unified view of a metric's metadata and current value.
 #[derive(Debug)]
 pub struct Item<'a> {
+    /// Reference to the metric's schema information
     pub schema: &'a ItemSchema,
+    /// Reference to the metric's current value
     pub value: &'a MetricValue,
 }
 
 impl<'a> Item<'a> {
-    fn as_metric_item(&self) -> MetricItem<'a> {
+    /// Returns the item as a [`MetricItem`].
+    pub fn as_metric_item(&self) -> MetricItem<'a> {
         MetricItem {
             name: &self.schema.name,
             help: &self.schema.help,
@@ -60,12 +87,14 @@ impl<'a> Item<'a> {
         }
     }
 
+    /// Encodes this metric item to OpenMetrics format.
+    ///
+    /// Writes the metric in OpenMetrics text format to the provided writer.
     pub fn encode_openmetrics(
         &self,
         writer: &mut impl std::fmt::Write,
     ) -> Result<(), crate::Error> {
-        let item = self.as_metric_item();
-        item.encode_openmetrics(
+        self.as_metric_item().encode_openmetrics(
             writer,
             self.schema.prefixes.as_slice(),
             self.schema
@@ -79,7 +108,7 @@ impl<'a> Item<'a> {
 
 /// Decoder for metrics received from an [`Encoder`]
 ///
-/// Implements [`MetricSource`] to export the decoded metrics to OpenMetrics.
+/// Implements [`MetricsSource`] to export the decoded metrics to OpenMetrics.
 #[derive(Debug, Default)]
 pub struct Decoder {
     schema: Option<Schema>,
@@ -87,6 +116,9 @@ pub struct Decoder {
 }
 
 impl Decoder {
+    /// Imports a metric update.
+    ///
+    /// Updates the decoder's schema (if provided) and values with the given update.
     pub fn import(&mut self, update: Update) {
         if let Some(schema) = update.schema {
             self.schema = Some(schema);
@@ -94,12 +126,18 @@ impl Decoder {
         self.values = update.values;
     }
 
+    /// Imports a metric update from serialized bytes.
+    ///
+    /// Deserializes the bytes using postcard and imports the resulting update.
     pub fn import_bytes(&mut self, data: &[u8]) -> Result<(), postcard::Error> {
         let update = postcard::from_bytes(data)?;
         self.import(update);
         Ok(())
     }
 
+    /// Creates an iterator over the decoded metric items.
+    ///
+    /// Returns an iterator that yields [`Item`] instances combining schema and value data.
     pub fn iter(&self) -> DecoderIter {
         DecoderIter {
             pos: 0,
@@ -108,9 +146,14 @@ impl Decoder {
     }
 }
 
+/// Iterator over decoded metric items.
+///
+/// Iterates through the metrics in a [`Decoder`], yielding [`Item`] instances.
 #[derive(Debug)]
 pub struct DecoderIter<'a> {
+    /// Current position in the iteration
     pos: usize,
+    /// Reference to the decoder being iterated
     inner: &'a Decoder,
 }
 
@@ -141,13 +184,23 @@ impl MetricsSource for Arc<RwLock<Decoder>> {
     }
 }
 
+/// Encoder for converting metrics from a registry into serializable updates.
+///
+/// Tracks schema changes and generates [`Update`] objects that can be
+/// transmitted to a [`Decoder`].
 #[derive(Debug)]
 pub struct Encoder {
+    /// The metrics registry to encode from
     registry: Arc<RwLock<Registry>>,
+    /// Version of the last schema that was exported
     last_schema_version: u64,
 }
 
 impl Encoder {
+    /// Creates a new encoder for the given registry.
+    ///
+    /// The encoder will track schema changes and only include schema
+    /// information in updates when it has changed.
     pub fn new(registry: RwLockRegistry) -> Self {
         Self {
             registry,
@@ -155,6 +208,10 @@ impl Encoder {
         }
     }
 
+    /// Exports the current state of the registry as an update.
+    ///
+    /// Returns an [`Update`] containing the current metric values and
+    /// optionally the schema (if it has changed since the last export).
     pub fn export(&mut self) -> Update {
         let registry = self.registry.read().expect("poisoned");
         let current = registry.schema_version();
@@ -171,6 +228,9 @@ impl Encoder {
         Update { schema, values }
     }
 
+    /// Exports the current state of the registry as serialized bytes.
+    ///
+    /// Returns the serialized bytes of an [`Update`] using postcard encoding.
     pub fn export_bytes(&mut self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_stdvec(&self.export())
     }
