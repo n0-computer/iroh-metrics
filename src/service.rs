@@ -2,8 +2,6 @@
 
 use std::{
     net::SocketAddr,
-    ops::Deref,
-    sync::{Arc, RwLock},
     time::{Duration, Instant},
 };
 
@@ -11,28 +9,9 @@ use hyper::{service::service_fn, Request, Response};
 use tokio::{io::AsyncWriteExt as _, net::TcpListener};
 use tracing::{debug, error, info, warn};
 
-use crate::{parse_prometheus_metrics, Error, MetricsSource, Registry};
+use crate::{parse_prometheus_metrics, Error, MetricsSource};
 
 type BytesBody = http_body_util::Full<hyper::body::Bytes>;
-
-/// A cloneable [`Registry`] in a read-write lock.
-///
-/// Useful if you need mutable access to a registry, while also using the services
-/// defined in [`crate::service`].
-pub type RwLockRegistry = Arc<RwLock<Registry>>;
-
-impl MetricsSource for RwLockRegistry {
-    fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        let inner = self.read().expect("poisoned");
-        inner.encode_openmetrics(writer)
-    }
-}
-
-impl MetricsSource for Arc<Registry> {
-    fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
-        Arc::deref(self).encode_openmetrics(writer)
-    }
-}
 
 /// Start a HTTP server to expose metrics .
 pub async fn start_metrics_server(

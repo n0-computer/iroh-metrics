@@ -3,7 +3,7 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-pub use self::{base::*, metrics::*, registry::*};
+pub use self::{base::*, encoding::*, metrics::*, registry::*};
 
 mod base;
 pub(crate) mod encoding;

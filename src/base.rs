@@ -23,9 +23,9 @@ pub trait MetricsGroup:
 /// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetricItem<'a> {
-    name: &'static str,
-    help: &'static str,
-    metric: &'a dyn Metric,
+    pub(crate) name: &'a str,
+    pub(crate) help: &'a str,
+    pub(crate) metric: &'a dyn Metric,
 }
 
 impl<'a> MetricItem<'a> {
@@ -34,12 +34,12 @@ impl<'a> MetricItem<'a> {
         Self { name, help, metric }
     }
     /// Returns the name of this metric item.
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &'a str {
         self.name
     }
 
     /// Returns the help of this metric item.
-    pub fn help(&self) -> &'static str {
+    pub fn help(&self) -> &'a str {
         self.help
     }
 
@@ -96,11 +96,15 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    use std::sync::RwLock;
+
     use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{
-        iterable::Iterable, Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
+        encoding::{Decoder, Encoder},
+        iterable::Iterable,
+        Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
@@ -363,5 +367,41 @@ combined_bar_count_total{x="y"} 10
         assert_eq!(decoded.foo.metric_a.get(), 1);
         assert_eq!(decoded.foo.metric_b.get(), -42);
         assert_eq!(decoded.bar.count.get(), 10);
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        let mut registry = Registry::default();
+        let metrics = Arc::new(FooMetrics::default());
+        registry.register(metrics.clone());
+
+        metrics.metric_a.inc();
+        metrics.metric_b.set(-42);
+
+        let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
+        println!("openmetrics len {}", om_from_registry.len());
+
+        let registry = Arc::new(RwLock::new(registry));
+
+        let mut encoder = Encoder::new(registry.clone());
+        let update = encoder.export_bytes().unwrap();
+        println!("first update len {}", update.len());
+
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+
+        let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+        assert_eq!(om_from_decoder, om_from_registry);
+
+        metrics.metric_a.inc();
+        metrics.metric_b.set(99);
+
+        let update = encoder.export_bytes().unwrap();
+        println!("second update len {}", update.len());
+        decoder.import_bytes(&update).unwrap();
+
+        let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
+        let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+        assert_eq!(om_from_decoder, om_from_registry);
     }
 }
