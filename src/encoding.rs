@@ -255,7 +255,7 @@ impl dyn MetricsGroup {
         }
     }
 
-    pub(crate) fn encode_values<'a>(&self, values: &mut Values) {
+    pub(crate) fn encode_values(&self, values: &mut Values) {
         for metric in self.iter() {
             metric.encode_value(values);
         }

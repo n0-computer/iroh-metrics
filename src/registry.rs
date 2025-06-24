@@ -106,12 +106,12 @@ impl Registry {
         Ok(())
     }
 
-    ///
+    /// Returns the current schema version of this registry.
     pub fn schema_version(&self) -> u64 {
         self.schema_version.load(Ordering::Relaxed)
     }
 
-    ///
+    /// Encodes the schema of all registered metrics into the provided schema builder.
     pub fn encode_schema(&self, schema: &mut crate::encoding::Schema) {
         for group in &self.metrics {
             group.encode_schema(schema, self.prefix.as_deref(), &self.labels);
@@ -122,7 +122,7 @@ impl Registry {
         }
     }
 
-    ///
+    /// Encodes the current values of all registered metrics into the provided values builder.
     pub fn encode_values(&self, values: &mut crate::encoding::Values) {
         for group in &self.metrics {
             group.encode_values(values);
