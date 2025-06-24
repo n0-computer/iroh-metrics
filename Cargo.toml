@@ -45,7 +45,7 @@ hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1.1", features = ["tokio"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
-postcard = "1.1.1"
+postcard = { version = "1.1.1", features = ["use-std"] }
 
 [dev-dependencies]
 postcard = { version = "1.1.1", features = ["use-std"] }
