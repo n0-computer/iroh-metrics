@@ -90,16 +90,25 @@ pub struct Item<'a> {
     pub value: &'a MetricValue,
 }
 
-impl<'a> Item<'a> {
-    /// Returns the item as a [`MetricItem`].
-    pub fn as_metric_item(&self) -> MetricItem<'a> {
-        MetricItem {
-            name: &self.schema.name,
-            help: &self.schema.help,
-            metric: self.value,
-        }
+impl<'a> EncodableMetric for Item<'a> {
+    fn name(&self) -> &str {
+        &self.schema.name
     }
 
+    fn help(&self) -> &str {
+        &self.schema.help
+    }
+
+    fn r#type(&self) -> MetricType {
+        self.schema.r#type
+    }
+
+    fn value(&self) -> MetricValue {
+        *self.value
+    }
+}
+
+impl<'a> Item<'a> {
     /// Encodes this metric item to OpenMetrics format.
     ///
     /// Writes the metric in OpenMetrics text format to the provided writer.
@@ -107,7 +116,8 @@ impl<'a> Item<'a> {
         &self,
         writer: &mut impl std::fmt::Write,
     ) -> Result<(), crate::Error> {
-        self.as_metric_item().encode_openmetrics(
+        EncodableMetric::encode_openmetrics(
+            self,
             writer,
             self.schema.prefixes.as_slice(),
             self.schema
@@ -290,6 +300,60 @@ impl dyn MetricsGroup {
             let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_openmetrics(writer, prefixes, labels)?;
         }
+        Ok(())
+    }
+}
+
+/// Trait for types that can provide metric encoding information.
+pub trait EncodableMetric {
+    /// Returns the name of this metric item.
+    fn name(&self) -> &str;
+
+    /// Returns the help of this metric item.
+    fn help(&self) -> &str;
+
+    /// Returns the [`MetricType`] for this item.
+    fn r#type(&self) -> MetricType;
+
+    /// Returns the current value of this item.
+    fn value(&self) -> MetricValue;
+
+    /// Encode the metrics item in the OpenMetrics text format.
+    fn encode_openmetrics<'a>(
+        &self,
+        writer: &mut impl Write,
+        prefixes: &[impl AsRef<str>],
+        labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
+    ) -> fmt::Result {
+        writer.write_str("# HELP ")?;
+        write_prefix_name(writer, prefixes, self.name())?;
+        writer.write_str(" ")?;
+        writer.write_str(self.help())?;
+        writer.write_str(".\n")?;
+
+        writer.write_str("# TYPE ")?;
+        write_prefix_name(writer, prefixes, self.name())?;
+        writer.write_str(" ")?;
+        writer.write_str(self.r#type().as_str())?;
+        writer.write_str("\n")?;
+
+        write_prefix_name(writer, prefixes, self.name())?;
+        let suffix = match self.r#type() {
+            MetricType::Counter => "_total",
+            MetricType::Gauge => "",
+        };
+        writer.write_str(suffix)?;
+        write_labels(writer, labels)?;
+        writer.write_char(' ')?;
+        match self.value() {
+            MetricValue::Counter(value) => {
+                encode_u64(writer, value)?;
+            }
+            MetricValue::Gauge(value) => {
+                encode_i64(writer, value)?;
+            }
+        }
+        writer.write_str("\n")?;
         Ok(())
     }
 }

@@ -2,7 +2,7 @@ use std::{any::Any, sync::Arc};
 
 use crate::{
     iterable::{FieldIter, IntoIterable, Iterable},
-    Metric, MetricType, MetricValue,
+    EncodableMetric, Metric, MetricType, MetricValue,
 };
 
 /// Trait for structs containing metric items.
@@ -23,9 +23,27 @@ pub trait MetricsGroup:
 /// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetricItem<'a> {
-    pub(crate) name: &'a str,
-    pub(crate) help: &'a str,
+    pub(crate) name: &'static str,
+    pub(crate) help: &'static str,
     pub(crate) metric: &'a dyn Metric,
+}
+
+impl<'a> EncodableMetric for MetricItem<'a> {
+    fn name(&self) -> &str {
+        self.name
+    }
+
+    fn help(&self) -> &str {
+        self.help
+    }
+
+    fn r#type(&self) -> MetricType {
+        self.metric.r#type()
+    }
+
+    fn value(&self) -> MetricValue {
+        self.metric.value()
+    }
 }
 
 impl<'a> MetricItem<'a> {
@@ -33,13 +51,19 @@ impl<'a> MetricItem<'a> {
     pub fn new(name: &'static str, help: &'static str, metric: &'a dyn Metric) -> Self {
         Self { name, help, metric }
     }
+
+    /// Returns the inner metric as [`Any`], for further downcasting to concrete metric types.
+    pub fn as_any(&self) -> &dyn Any {
+        self.metric.as_any()
+    }
+
     /// Returns the name of this metric item.
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &'static str {
         self.name
     }
 
     /// Returns the help of this metric item.
-    pub fn help(&self) -> &'a str {
+    pub fn help(&self) -> &'static str {
         self.help
     }
 
@@ -51,11 +75,6 @@ impl<'a> MetricItem<'a> {
     /// Returns the current value of this item.
     pub fn value(&self) -> MetricValue {
         self.metric.value()
-    }
-
-    /// Returns the inner metric as [`Any`], for further downcasting to concrete metric types.
-    pub fn as_any(&self) -> &dyn Any {
-        self.metric.as_any()
     }
 }
 

@@ -27,7 +27,7 @@ pub trait IntoIterable {
     fn as_iterable(&self) -> &dyn Iterable;
 
     /// Returns an iterator over the fields of the struct.
-    fn field_iter(&self) -> FieldIter<'_> {
+    fn field_iter(&self) -> FieldIter {
         FieldIter::new(self.as_iterable())
     }
 }
