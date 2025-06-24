@@ -36,6 +36,19 @@ pub struct ItemSchema {
     pub labels: Vec<(String, String)>,
 }
 
+impl ItemSchema {
+    /// Returns the name prefixed with all prefixes.
+    pub fn prefixed_name(&self) -> String {
+        let mut out = String::new();
+        for prefix in &self.prefixes {
+            out.push_str(prefix);
+            out.push('_');
+        }
+        out.push_str(&self.name);
+        out
+    }
+}
+
 /// A collection of metric schemas.
 ///
 /// Contains all the schema information for a set of metrics.
