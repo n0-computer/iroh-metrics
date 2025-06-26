@@ -6,7 +6,7 @@
 pub use self::{base::*, metrics::*, registry::*};
 
 mod base;
-pub(crate) mod encoding;
+pub mod encoding;
 pub mod iterable;
 mod metrics;
 mod registry;

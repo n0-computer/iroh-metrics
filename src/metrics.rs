@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 
 /// The types of metrics supported by this crate.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum MetricType {
     /// A [`Counter`].
@@ -33,7 +33,7 @@ impl MetricType {
 }
 
 /// The value of an individual metric item.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum MetricValue {
     /// A [`Counter`] value.
@@ -57,6 +57,20 @@ impl MetricValue {
             MetricValue::Counter(_) => MetricType::Counter,
             MetricValue::Gauge(_) => MetricType::Gauge,
         }
+    }
+}
+
+impl Metric for MetricValue {
+    fn r#type(&self) -> MetricType {
+        self.r#type()
+    }
+
+    fn value(&self) -> MetricValue {
+        *self
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

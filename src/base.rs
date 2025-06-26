@@ -1,6 +1,7 @@
 use std::{any::Any, sync::Arc};
 
 use crate::{
+    encoding::EncodableMetric,
     iterable::{FieldIter, IntoIterable, Iterable},
     Metric, MetricType, MetricValue,
 };
@@ -19,13 +20,29 @@ pub trait MetricsGroup:
 }
 
 /// A metric item with its current value.
-///
-/// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetricItem<'a> {
-    name: &'static str,
-    help: &'static str,
-    metric: &'a dyn Metric,
+    pub(crate) name: &'static str,
+    pub(crate) help: &'static str,
+    pub(crate) metric: &'a dyn Metric,
+}
+
+impl<'a> EncodableMetric for MetricItem<'a> {
+    fn name(&self) -> &str {
+        self.name
+    }
+
+    fn help(&self) -> &str {
+        self.help
+    }
+
+    fn r#type(&self) -> MetricType {
+        self.metric.r#type()
+    }
+
+    fn value(&self) -> MetricValue {
+        self.metric.value()
+    }
 }
 
 impl<'a> MetricItem<'a> {
@@ -33,6 +50,12 @@ impl<'a> MetricItem<'a> {
     pub fn new(name: &'static str, help: &'static str, metric: &'a dyn Metric) -> Self {
         Self { name, help, metric }
     }
+
+    /// Returns the inner metric as [`Any`], for further downcasting to concrete metric types.
+    pub fn as_any(&self) -> &dyn Any {
+        self.metric.as_any()
+    }
+
     /// Returns the name of this metric item.
     pub fn name(&self) -> &'static str {
         self.name
@@ -51,11 +74,6 @@ impl<'a> MetricItem<'a> {
     /// Returns the current value of this item.
     pub fn value(&self) -> MetricValue {
         self.metric.value()
-    }
-
-    /// Returns the inner metric as [`Any`], for further downcasting to concrete metric types.
-    pub fn as_any(&self) -> &dyn Any {
-        self.metric.as_any()
     }
 }
 
@@ -96,11 +114,15 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    use std::sync::RwLock;
+
     use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{
-        iterable::Iterable, Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
+        encoding::{Decoder, Encoder},
+        iterable::Iterable,
+        Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
@@ -363,5 +385,58 @@ combined_bar_count_total{x="y"} 10
         assert_eq!(decoded.foo.metric_a.get(), 1);
         assert_eq!(decoded.foo.metric_b.get(), -42);
         assert_eq!(decoded.bar.count.get(), 10);
+    }
+
+    #[test]
+    fn test_encode_decode() {
+        let mut registry = Registry::default();
+        let metrics = Arc::new(FooMetrics::default());
+        registry.register(metrics.clone());
+
+        metrics.metric_a.inc();
+        metrics.metric_b.set(-42);
+
+        let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
+        println!("openmetrics len {}", om_from_registry.len());
+
+        let registry = Arc::new(RwLock::new(registry));
+
+        let mut encoder = Encoder::new(registry.clone());
+        let update = encoder.export_bytes().unwrap();
+        println!("first update len {}", update.len());
+
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+
+        let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+        assert_eq!(om_from_decoder, om_from_registry);
+
+        metrics.metric_a.inc();
+        metrics.metric_b.set(99);
+
+        let update = encoder.export_bytes().unwrap();
+        println!("second update len {}", update.len());
+        decoder.import_bytes(&update).unwrap();
+
+        let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
+        let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+        assert_eq!(om_from_decoder, om_from_registry);
+
+        for item in decoder.iter() {
+            assert!(item.help.is_some());
+        }
+
+        let mut encoder = Encoder::new_with_opts(
+            registry.clone(),
+            crate::encoding::EncoderOpts {
+                include_help: false,
+            },
+        );
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+        decoder.import(encoder.export());
+        for item in decoder.iter() {
+            assert_eq!(item.help, None);
+        }
     }
 }
