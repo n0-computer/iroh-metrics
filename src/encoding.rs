@@ -10,9 +10,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, Registry, RwLockRegistry,
-};
+use crate::{MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry};
 
 pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
@@ -28,8 +26,6 @@ pub struct ItemSchema {
     pub r#type: MetricType,
     /// The name of the metric
     pub name: String,
-    /// Help text describing the metric
-    pub help: String,
     /// Prefixes to prepend to the metric name
     pub prefixes: Vec<String>,
     /// Labels associated with the metric as key-value pairs
@@ -52,10 +48,31 @@ impl ItemSchema {
 /// A collection of metric schemas.
 ///
 /// Contains all the schema information for a set of metrics.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Schema {
     /// The individual metric schemas
     pub items: Vec<ItemSchema>,
+    /// Help texts (may be omitted)
+    pub help: Option<Vec<String>>,
+}
+
+impl Schema {
+    /// Creates a new [`Schema`] that does not track help text.
+    pub fn new_without_help() -> Self {
+        Self {
+            items: Default::default(),
+            help: None,
+        }
+    }
+}
+
+impl Default for Schema {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            help: Some(Vec::new()),
+        }
+    }
 }
 
 /// A collection of metric values.
@@ -88,6 +105,8 @@ pub struct Item<'a> {
     pub schema: &'a ItemSchema,
     /// Reference to the metric's current value
     pub value: &'a MetricValue,
+    /// Help text, if available
+    pub help: Option<&'a String>,
 }
 
 impl<'a> EncodableMetric for Item<'a> {
@@ -96,7 +115,7 @@ impl<'a> EncodableMetric for Item<'a> {
     }
 
     fn help(&self) -> &str {
-        &self.schema.help
+        &self.help.map(|x| x.as_str()).unwrap_or_default()
     }
 
     fn r#type(&self) -> MetricType {
@@ -186,8 +205,20 @@ impl<'a> Iterator for DecoderIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let schema = self.inner.schema.as_ref()?.items.get(self.pos)?;
         let value = self.inner.values.items.get(self.pos)?;
+        let help = self
+            .inner
+            .schema
+            .as_ref()?
+            .help
+            .as_ref()
+            .map(|help| help.get(self.pos))
+            .flatten();
         self.pos += 1;
-        Some(Item { schema, value })
+        Some(Item {
+            schema,
+            value,
+            help,
+        })
     }
 }
 
@@ -214,9 +245,24 @@ impl MetricsSource for Arc<RwLock<Decoder>> {
 #[derive(Debug)]
 pub struct Encoder {
     /// The metrics registry to encode from
-    registry: Arc<RwLock<Registry>>,
+    registry: RwLockRegistry,
     /// Version of the last schema that was exported
     last_schema_version: u64,
+    opts: EncoderOpts,
+}
+
+/// Options for an [`Encoder`]
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct EncoderOpts {
+    /// Whether to include the metric help text in the transmitted schema.
+    pub include_help: bool,
+}
+
+impl Default for EncoderOpts {
+    fn default() -> Self {
+        Self { include_help: true }
+    }
 }
 
 impl Encoder {
@@ -225,9 +271,15 @@ impl Encoder {
     /// The encoder will track schema changes and only include schema
     /// information in updates when it has changed.
     pub fn new(registry: RwLockRegistry) -> Self {
+        Self::new_with_opts(registry, Default::default())
+    }
+
+    /// Creates a new encoder for the given registry with custom options.
+    pub fn new_with_opts(registry: RwLockRegistry, opts: EncoderOpts) -> Self {
         Self {
             registry,
             last_schema_version: 0,
+            opts,
         }
     }
 
@@ -240,7 +292,11 @@ impl Encoder {
         let current = registry.schema_version();
         let schema = if current != self.last_schema_version {
             self.last_schema_version = current;
-            let mut schema = Schema::default();
+            let mut schema = if self.opts.include_help {
+                Schema::default()
+            } else {
+                Schema::new_without_help()
+            };
             registry.encode_schema(&mut schema);
             Some(schema)
         } else {
@@ -268,7 +324,7 @@ impl dyn MetricsGroup {
     ) {
         let name = self.name();
         let prefixes = if let Some(prefix) = prefix {
-            &[prefix, name] as &[&str]
+            &[prefix, name][..]
         } else {
             &[name]
         };
@@ -368,13 +424,15 @@ impl MetricItem<'_> {
         let item = crate::encoding::ItemSchema {
             name: self.name().to_string(),
             prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
-            help: self.help().to_string(),
             labels: labels
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
             r#type: self.r#type(),
         };
         schema.items.push(item);
+        if let Some(help) = schema.help.as_mut() {
+            help.push(self.help().to_string());
+        }
     }
 
     fn encode_value(&self, values: &mut Values) {

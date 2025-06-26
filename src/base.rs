@@ -19,8 +19,6 @@ pub trait MetricsGroup:
 }
 
 /// A metric item with its current value.
-///
-/// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 #[derive(Debug, Clone, Copy)]
 pub struct MetricItem<'a> {
     pub(crate) name: &'static str,
@@ -422,5 +420,22 @@ combined_bar_count_total{x="y"} 10
         let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
         let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
         assert_eq!(om_from_decoder, om_from_registry);
+
+        for item in decoder.iter() {
+            assert!(matches!(item.help, Some(_)));
+        }
+
+        let mut encoder = Encoder::new_with_opts(
+            registry.clone(),
+            crate::EncoderOpts {
+                include_help: false,
+            },
+        );
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+        decoder.import(encoder.export());
+        for item in decoder.iter() {
+            assert_eq!(item.help, None);
+        }
     }
 }
