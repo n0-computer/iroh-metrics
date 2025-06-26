@@ -16,6 +16,13 @@ pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
+/// Writes `# EOF\n` to `writer`.
+///
+/// This is the expected last characters of an OpenMetrics string.
+pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
+    write_eof(writer)
+}
+
 /// Schema information for a single metric item.
 ///
 /// Contains metadata about a metric including its type, name, help text,

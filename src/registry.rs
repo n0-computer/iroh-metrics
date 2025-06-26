@@ -134,20 +134,6 @@ impl Registry {
     }
 }
 
-/// Writes `# EOF\n` to `writer`.
-///
-/// This is the expected last characters of an OpenMetrics string.
-pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
-    write_eof(writer)
-}
-
-/// Writes `# EOF\n` to `writer`.
-///
-/// This is the expected last characters of an OpenMetrics string.
-pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
-    write_eof(writer)
-}
-
 /// Helper trait to abstract over different ways to access metrics.
 pub trait MetricsSource: Send + 'static {
     /// Encodes all metrics into a string in the OpenMetrics text format.
