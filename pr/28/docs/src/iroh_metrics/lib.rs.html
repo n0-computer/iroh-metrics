@@ -94,10 +94,10 @@
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-</span><span class="kw">pub use </span><span class="self">self</span>::{base::<span class="kw-2">*</span>, encoding::<span class="kw-2">*</span>, metrics::<span class="kw-2">*</span>, registry::<span class="kw-2">*</span>};
+</span><span class="kw">pub use </span><span class="self">self</span>::{base::<span class="kw-2">*</span>, metrics::<span class="kw-2">*</span>, registry::<span class="kw-2">*</span>};
 
 <span class="kw">mod </span>base;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>encoding;
+<span class="kw">pub mod </span>encoding;
 <span class="kw">pub mod </span>iterable;
 <span class="kw">mod </span>metrics;
 <span class="kw">mod </span>registry;

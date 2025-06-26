@@ -424,11 +424,28 @@
 <a href="#423" id="423">423</a>
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
 
 <span class="kw">use crate</span>::{
+    encoding::EncodableMetric,
     iterable::{FieldIter, IntoIterable, Iterable},
-    EncodableMetric, Metric, MetricType, MetricValue,
+    Metric, MetricType, MetricValue,
 };
 
 <span class="doccomment">/// Trait for structs containing metric items.
@@ -445,8 +462,6 @@
 }
 
 <span class="doccomment">/// A metric item with its current value.
-///
-/// Returned from [`MetricsGroup::iter`] and [`MetricsGroupSet::iter`].
 </span><span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">pub struct </span>MetricItem&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
@@ -848,6 +863,23 @@ combined_bar_count_total{x="y"} 10
         <span class="kw">let </span>om_from_registry = registry.encode_openmetrics_to_string().unwrap();
         <span class="kw">let </span>om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
         <span class="macro">assert_eq!</span>(om_from_decoder, om_from_registry);
+
+        <span class="kw">for </span>item <span class="kw">in </span>decoder.iter() {
+            <span class="macro">assert!</span>(item.help.is_some());
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = Encoder::new_with_opts(
+            registry.clone(),
+            <span class="kw">crate</span>::encoding::EncoderOpts {
+                include_help: <span class="bool-val">false</span>,
+            },
+        );
+        <span class="kw">let </span><span class="kw-2">mut </span>decoder = Decoder::default();
+        decoder.import_bytes(<span class="kw-2">&amp;</span>update).unwrap();
+        decoder.import(encoder.export());
+        <span class="kw">for </span>item <span class="kw">in </span>decoder.iter() {
+            <span class="macro">assert_eq!</span>(item.help, <span class="prelude-val">None</span>);
+        }
     }
 }
 </code></pre></div></section></main></body></html>
