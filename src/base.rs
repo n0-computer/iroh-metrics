@@ -423,7 +423,7 @@ combined_bar_count_total{x="y"} 10
         assert_eq!(om_from_decoder, om_from_registry);
 
         for item in decoder.iter() {
-            assert!(matches!(item.help, Some(_)));
+            assert!(item.help.is_some());
         }
 
         let mut encoder = Encoder::new_with_opts(

@@ -122,7 +122,7 @@ impl<'a> EncodableMetric for Item<'a> {
     }
 
     fn help(&self) -> &str {
-        &self.help.map(|x| x.as_str()).unwrap_or_default()
+        self.help.map(|x| x.as_str()).unwrap_or_default()
     }
 
     fn r#type(&self) -> MetricType {
@@ -218,8 +218,7 @@ impl<'a> Iterator for DecoderIter<'a> {
             .as_ref()?
             .help
             .as_ref()
-            .map(|help| help.get(self.pos))
-            .flatten();
+            .and_then(|help| help.get(self.pos));
         self.pos += 1;
         Some(Item {
             schema,
