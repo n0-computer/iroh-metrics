@@ -361,7 +361,7 @@ impl dyn MetricsGroup {
 }
 
 /// Trait for types that can provide metric encoding information.
-pub trait EncodableMetric {
+pub(crate) trait EncodableMetric {
     /// Returns the name of this metric item.
     fn name(&self) -> &str;
 

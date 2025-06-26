@@ -1,8 +1,9 @@
 use std::{any::Any, sync::Arc};
 
 use crate::{
+    encoding::EncodableMetric,
     iterable::{FieldIter, IntoIterable, Iterable},
-    EncodableMetric, Metric, MetricType, MetricValue,
+    Metric, MetricType, MetricValue,
 };
 
 /// Trait for structs containing metric items.
@@ -427,7 +428,7 @@ combined_bar_count_total{x="y"} 10
 
         let mut encoder = Encoder::new_with_opts(
             registry.clone(),
-            crate::EncoderOpts {
+            crate::encoding::EncoderOpts {
                 include_help: false,
             },
         );
