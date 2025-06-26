@@ -95,6 +95,8 @@ impl Registry {
     ///
     /// This does not write the terminal `# EOF\n` string to `writer`.
     /// You can use [`encode_openmetrics_eof`] to do that.
+    ///
+    /// [`encode_openmetrics_eof`]: crate::encoding::encode_openmetrics_eof
     pub fn encode_openmetrics_to_writer(&self, writer: &mut impl Write) -> fmt::Result {
         for group in &self.metrics {
             group.encode_openmetrics(writer, self.prefix.as_deref(), &self.labels)?;
