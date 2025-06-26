@@ -2,7 +2,18 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.34.0](https://github.com/n0-computer/iroh-metrics/compare/v0.33.0..0.34.0) - 2025-04-30
+## [0.35.0](https://github.com/n0-computer/iroh-metrics/compare/v0.34.0..0.35.0) - 2025-06-26
+
+### ⛰️  Features
+
+- Allow to encode a registry in openmetrics without EOF ([#27](https://github.com/n0-computer/iroh-metrics/issues/27)) - ([4e93211](https://github.com/n0-computer/iroh-metrics/commit/4e9321183d4dae10bf0e4a06b2daf2f0ad304da0))
+- Add efficient metrics encoder that transfers schema only on change ([#28](https://github.com/n0-computer/iroh-metrics/issues/28)) - ([b41f033](https://github.com/n0-computer/iroh-metrics/commit/b41f03393dde84bde7ceac78c0d1f2f1a67d758e))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(ci)* Add release script ([#26](https://github.com/n0-computer/iroh-metrics/issues/26)) - ([dcf91e4](https://github.com/n0-computer/iroh-metrics/commit/dcf91e4f373ebb6ae8847d846c9430eb6d4a1d13))
+
+## [0.34.0](https://github.com/n0-computer/iroh-metrics/compare/v0.33.0..v0.34.0) - 2025-04-30
 
 ### ⛰️  Features
 
@@ -17,6 +28,7 @@ All notable changes to iroh will be documented in this file.
 
 - Add ignore to deny.toml ([#25](https://github.com/n0-computer/iroh-metrics/issues/25)) - ([55b432d](https://github.com/n0-computer/iroh-metrics/commit/55b432dc3bc31722501ddf5e30105db9db286d0b))
 - Release - ([33ee40e](https://github.com/n0-computer/iroh-metrics/commit/33ee40ef8304244522156040d62cd5d5deed4d31))
+- Release - ([017aa27](https://github.com/n0-computer/iroh-metrics/commit/017aa27ed257944c9678eede7ab6ff9ca2d8cc0e))
 
 ## [0.33.0](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.1.0..v0.33.0) - 2025-04-16
 
