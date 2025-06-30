@@ -77,10 +77,8 @@ pub async fn start_metrics_exporter(
         password,
     } = cfg;
     let push_client = reqwest::Client::new();
-    let prom_gateway_uri = format!(
-        "{}/metrics/job/{}/instance/{}",
-        endpoint, service_name, instance_name
-    );
+    let prom_gateway_uri =
+        format!("{endpoint}/metrics/job/{service_name}/instance/{instance_name}");
     loop {
         tokio::time::sleep(interval).await;
         let buf = registry.encode_openmetrics_to_string()?;
@@ -153,10 +151,10 @@ async fn dump_metrics(
         metrics.push('\n');
     }
 
-    metrics.push_str(&format!("{}", time_since_start));
+    metrics.push_str(&format!("{time_since_start}"));
     for key in keys.iter() {
         let value = m[*key];
-        let formatted_value = format!("{:.3}", value);
+        let formatted_value = format!("{value:.3}");
         metrics.push(',');
         metrics.push_str(&formatted_value);
     }
