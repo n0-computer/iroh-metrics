@@ -14,7 +14,7 @@ pub trait MetricsGroup:
     fn name(&self) -> &'static str;
 
     /// Returns an iterator over all metric items with their values and helps.
-    fn iter(&self) -> FieldIter {
+    fn iter(&self) -> FieldIter<'_> {
         self.field_iter()
     }
 }
@@ -27,7 +27,7 @@ pub struct MetricItem<'a> {
     pub(crate) metric: &'a dyn Metric,
 }
 
-impl<'a> EncodableMetric for MetricItem<'a> {
+impl EncodableMetric for MetricItem<'_> {
     fn name(&self) -> &str {
         self.name
     }

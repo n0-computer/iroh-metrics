@@ -116,7 +116,7 @@ pub struct Item<'a> {
     pub help: Option<&'a String>,
 }
 
-impl<'a> EncodableMetric for Item<'a> {
+impl EncodableMetric for Item<'_> {
     fn name(&self) -> &str {
         &self.schema.name
     }
@@ -134,7 +134,7 @@ impl<'a> EncodableMetric for Item<'a> {
     }
 }
 
-impl<'a> Item<'a> {
+impl Item<'_> {
     /// Encodes this metric item to OpenMetrics format.
     ///
     /// Writes the metric in OpenMetrics text format to the provided writer.
