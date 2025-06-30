@@ -194,9 +194,7 @@
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
 <a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
+<a href="#196" id="196">196</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to start services that deal with metrics exposed by this crate.
 
 </span><span class="kw">use </span>std::{
     net::SocketAddr,
@@ -275,10 +273,8 @@
         password,
     } = cfg;
     <span class="kw">let </span>push_client = reqwest::Client::new();
-    <span class="kw">let </span>prom_gateway_uri = <span class="macro">format!</span>(
-        <span class="string">"{}/metrics/job/{}/instance/{}"</span>,
-        endpoint, service_name, instance_name
-    );
+    <span class="kw">let </span>prom_gateway_uri =
+        <span class="macro">format!</span>(<span class="string">"{endpoint}/metrics/job/{service_name}/instance/{instance_name}"</span>);
     <span class="kw">loop </span>{
         tokio::time::sleep(interval).<span class="kw">await</span>;
         <span class="kw">let </span>buf = registry.encode_openmetrics_to_string()<span class="question-mark">?</span>;
@@ -351,10 +347,10 @@
         metrics.push(<span class="string">'\n'</span>);
     }
 
-    metrics.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{}"</span>, time_since_start));
+    metrics.push_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{time_since_start}"</span>));
     <span class="kw">for </span>key <span class="kw">in </span>keys.iter() {
         <span class="kw">let </span>value = m[<span class="kw-2">*</span>key];
-        <span class="kw">let </span>formatted_value = <span class="macro">format!</span>(<span class="string">"{:.3}"</span>, value);
+        <span class="kw">let </span>formatted_value = <span class="macro">format!</span>(<span class="string">"{value:.3}"</span>);
         metrics.push(<span class="string">','</span>);
         metrics.push_str(<span class="kw-2">&amp;</span>formatted_value);
     }
