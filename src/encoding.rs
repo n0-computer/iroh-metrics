@@ -27,7 +27,7 @@ pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
 ///
 /// Contains metadata about a metric including its type, name, help text,
 /// prefixes, and labels.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemSchema {
     /// The type of the metric (Counter, Gauge, etc.)
     pub r#type: MetricType,
@@ -55,7 +55,7 @@ impl ItemSchema {
 /// A collection of metric schemas.
 ///
 /// Contains all the schema information for a set of metrics.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Schema {
     /// The individual metric schemas
     pub items: Vec<ItemSchema>,
@@ -85,7 +85,7 @@ impl Default for Schema {
 /// A collection of metric values.
 ///
 /// Contains the actual values for a set of metrics.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct Values {
     /// The individual metric values
     pub items: Vec<MetricValue>,
@@ -95,7 +95,7 @@ pub struct Values {
 ///
 /// Used to transfer metric information between encoders and decoders.
 /// The schema is optional and only included when it has changed.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct Update {
     /// Optional schema information (included when schema changes)
     pub schema: Option<Schema>,
