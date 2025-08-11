@@ -187,7 +187,7 @@ impl Decoder {
     /// Creates an iterator over the decoded metric items.
     ///
     /// Returns an iterator that yields [`Item`] instances combining schema and value data.
-    pub fn iter(&self) -> DecoderIter {
+    pub fn iter(&self) -> DecoderIter<'_> {
         DecoderIter {
             pos: 0,
             inner: self,
