@@ -403,6 +403,7 @@ pub(crate) trait EncodableMetric {
         let suffix = match self.r#type() {
             MetricType::Counter => "_total",
             MetricType::Gauge => "",
+            MetricType::Histogram => "",
         };
         writer.write_str(suffix)?;
         write_labels(writer, labels)?;
@@ -451,6 +452,8 @@ impl MetricItem<'_> {
         prefixes: &[impl AsRef<str>],
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) -> fmt::Result {
+        use crate::Histogram;
+
         writer.write_str("# HELP ")?;
         write_prefix_name(writer, prefixes, self.name())?;
         writer.write_str(" ")?;
@@ -463,10 +466,64 @@ impl MetricItem<'_> {
         writer.write_str(self.r#type().as_str())?;
         writer.write_str("\n")?;
 
+        if self.r#type() == MetricType::Histogram {
+            if let Some(histogram) = self.as_any().downcast_ref::<Histogram>() {
+                let labels_vec: Vec<_> = labels.collect();
+
+                for (upper_bound, count) in histogram.buckets() {
+                    write_prefix_name(writer, prefixes, self.name())?;
+                    writer.write_str("_bucket")?;
+                    writer.write_char('{')?;
+                    for (i, (key, value)) in labels_vec.iter().enumerate() {
+                        if i > 0 {
+                            writer.write_char(',')?;
+                        }
+                        writer.write_str(key)?;
+                        writer.write_str("=\"")?;
+                        writer.write_str(value)?;
+                        writer.write_char('"')?;
+                    }
+                    if !labels_vec.is_empty() {
+                        writer.write_char(',')?;
+                    }
+                    writer.write_str("le=\"")?;
+                    if upper_bound == f64::INFINITY {
+                        writer.write_str("+Inf")?;
+                    } else {
+                        writer.write_str(ryu::Buffer::new().format(upper_bound))?;
+                    }
+                    writer.write_str("\"} ")?;
+                    encode_u64(writer, count)?;
+                    writer.write_str("\n")?;
+                }
+
+                write_prefix_name(writer, prefixes, self.name())?;
+                writer.write_str("_sum")?;
+                if !labels_vec.is_empty() {
+                    write_labels(writer, labels_vec.iter().copied())?;
+                }
+                writer.write_char(' ')?;
+                encode_f64(writer, histogram.sum())?;
+                writer.write_str("\n")?;
+
+                write_prefix_name(writer, prefixes, self.name())?;
+                writer.write_str("_count")?;
+                if !labels_vec.is_empty() {
+                    write_labels(writer, labels_vec.iter().copied())?;
+                }
+                writer.write_char(' ')?;
+                encode_u64(writer, histogram.count())?;
+                writer.write_str("\n")?;
+
+                return Ok(());
+            }
+        }
+
         write_prefix_name(writer, prefixes, self.name())?;
         let suffix = match self.r#type() {
             MetricType::Counter => "_total",
             MetricType::Gauge => "",
+            MetricType::Histogram => "",
         };
         writer.write_str(suffix)?;
         write_labels(writer, labels)?;
@@ -516,6 +573,11 @@ fn encode_u64(writer: &mut impl Write, v: u64) -> fmt::Result {
 
 fn encode_i64(writer: &mut impl Write, v: i64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
+    Ok(())
+}
+
+fn encode_f64(writer: &mut impl Write, v: f64) -> fmt::Result {
+    writer.write_str(ryu::Buffer::new().format(v))?;
     Ok(())
 }
 

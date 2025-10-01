@@ -32,6 +32,7 @@ unused-async = "warn"
 [dependencies]
 iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.2.0" }
 itoa = "1"
+ryu = "1"
 serde = { version = "1", features = ["derive", "rc"] }
 snafu = { version = "0.8.5", features = ["rust_1_81"] }
 tracing = "0.1"
@@ -49,6 +50,7 @@ postcard = { version = "1.1.1", features = ["use-std"] }
 
 [dev-dependencies]
 postcard = { version = "1.1.1", features = ["use-std"] }
+prometheus-parse = "0.2"
 tokio = { version = "1", features = ["io-util", "sync", "rt", "net", "fs", "macros", "time", "test-util"] }
 
 [features]
