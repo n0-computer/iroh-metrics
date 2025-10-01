@@ -199,6 +199,7 @@ impl Histogram {
     /// The `buckets` parameter defines the upper bounds for each bucket.
     /// Buckets should be in ascending order. An infinity bucket is automatically
     /// added if not present to ensure all observations are captured.
+    #[cfg_attr(not(feature = "metrics"), allow(unused_mut))]
     pub fn new(mut buckets: Vec<f64>) -> Self {
         #[cfg(feature = "metrics")]
         {
