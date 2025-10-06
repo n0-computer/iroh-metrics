@@ -439,4 +439,125 @@ combined_bar_count_total{x="y"} 10
             assert_eq!(item.help, None);
         }
     }
+
+    #[test]
+    fn test_histogram() {
+        use crate::Histogram;
+
+        let histogram = Histogram::new(vec![1.0, 5.0, 10.0, 50.0, 100.0, f64::INFINITY]);
+
+        histogram.observe(0.5);
+        histogram.observe(2.5);
+        histogram.observe(7.5);
+        histogram.observe(25.0);
+        histogram.observe(75.0);
+        histogram.observe(150.0);
+
+        assert_eq!(histogram.count(), 6);
+        assert_eq!(histogram.sum(), 260.5);
+
+        let buckets = histogram.buckets();
+        assert_eq!(buckets.len(), 6);
+        assert_eq!(buckets[0], (1.0, 1));
+        assert_eq!(buckets[1], (5.0, 2));
+        assert_eq!(buckets[2], (10.0, 3));
+        assert_eq!(buckets[3], (50.0, 4));
+        assert_eq!(buckets[4], (100.0, 5));
+        assert_eq!(buckets[5], (f64::INFINITY, 6));
+
+        let p50 = histogram.percentile(0.5);
+        assert_eq!(p50, 10.0);
+
+        let p99 = histogram.percentile(0.99);
+        assert_eq!(p99, 100.0);
+
+        let p100 = histogram.percentile(1.0);
+        assert_eq!(p100, f64::INFINITY);
+    }
+
+    #[test]
+    fn test_histogram_prometheus_format() {
+        use crate::Histogram;
+
+        #[derive(Debug, Iterable)]
+        pub struct HistogramMetrics {
+            pub response_time: Histogram,
+        }
+
+        impl MetricsGroup for HistogramMetrics {
+            fn name(&self) -> &'static str {
+                "http"
+            }
+        }
+
+        let metrics = HistogramMetrics {
+            response_time: Histogram::new(vec![0.1, 0.5, 1.0, 5.0, f64::INFINITY]),
+        };
+
+        metrics.response_time.observe(0.05);
+        metrics.response_time.observe(0.3);
+        metrics.response_time.observe(0.8);
+        metrics.response_time.observe(2.5);
+
+        let mut registry = Registry::default();
+        registry.register(Arc::new(metrics));
+
+        let output = registry.encode_openmetrics_to_string().unwrap();
+
+        let parsed = prometheus_parse::Scrape::parse(output.lines().map(|s| Ok(s.to_owned())))
+            .expect("Failed to parse Prometheus output");
+
+        assert_eq!(parsed.samples.len(), 3);
+
+        let histogram_sample = parsed
+            .samples
+            .iter()
+            .find(|s| s.metric == "http_response_time")
+            .expect("Expected to find http_response_time histogram");
+
+        let sum_sample = parsed
+            .samples
+            .iter()
+            .find(|s| s.metric == "http_response_time_sum")
+            .expect("Expected to find http_response_time_sum");
+
+        let count_sample = parsed
+            .samples
+            .iter()
+            .find(|s| s.metric == "http_response_time_count")
+            .expect("Expected to find http_response_time_count");
+
+        if let prometheus_parse::Value::Untyped(sum) = sum_sample.value {
+            assert_eq!(sum, 3.65);
+        } else {
+            panic!("Expected sum value");
+        }
+
+        if let prometheus_parse::Value::Untyped(count) = count_sample.value {
+            assert_eq!(count, 4.0);
+        } else {
+            panic!("Expected count value");
+        }
+
+        if let prometheus_parse::Value::Histogram(buckets) = &histogram_sample.value {
+            assert_eq!(buckets.len(), 5);
+
+            assert_eq!(buckets[0].less_than, 0.1);
+            assert_eq!(buckets[0].count, 1.0);
+
+            assert_eq!(buckets[1].less_than, 0.5);
+            assert_eq!(buckets[1].count, 2.0);
+
+            assert_eq!(buckets[2].less_than, 1.0);
+            assert_eq!(buckets[2].count, 3.0);
+
+            assert_eq!(buckets[3].less_than, 5.0);
+            assert_eq!(buckets[3].count, 4.0);
+
+            assert_eq!(buckets[4].less_than, f64::INFINITY);
+            assert_eq!(buckets[4].count, 4.0);
+        } else {
+            panic!("Expected histogram value, got {:?}", histogram_sample.value);
+        }
+    }
 }
