@@ -16,6 +16,7 @@ All notable changes to iroh will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Release - ([33ee40e](https://github.com/n0-computer/iroh-metrics/commit/33ee40ef8304244522156040d62cd5d5deed4d31))
+- Add changelog - ([9fcee22](https://github.com/n0-computer/iroh-metrics/commit/9fcee22cf7c04c3e48df5df57ace53f88f651556))
 
 ## [iroh-metrics-derive-v0.1.0](https://github.com/n0-computer/iroh-metrics/compare/v0.32.0..iroh-metrics-derive-v0.1.0) - 2025-04-16
 
