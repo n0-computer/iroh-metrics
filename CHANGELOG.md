@@ -2,7 +2,24 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.35.0](https://github.com/n0-computer/iroh-metrics/compare/v0.34.0..0.35.0) - 2025-06-26
+## [0.36.0](https://github.com/n0-computer/iroh-metrics/compare/v0.35.0..0.36.0) - 2025-10-07
+
+### ⛰️  Features
+
+- Histograms ([#35](https://github.com/n0-computer/iroh-metrics/issues/35)) - ([5eae007](https://github.com/n0-computer/iroh-metrics/commit/5eae00760e857355a345f86335dfb20ff327b086))
+- Default via macro ([#37](https://github.com/n0-computer/iroh-metrics/issues/37)) - ([5b3bf4f](https://github.com/n0-computer/iroh-metrics/commit/5b3bf4ff082b2c17e32f750b68272d7c644b7808))
+
+### 🐛 Bug Fixes
+
+- Impl Clone for Schema and Values ([#31](https://github.com/n0-computer/iroh-metrics/issues/31)) - ([5b2ff82](https://github.com/n0-computer/iroh-metrics/commit/5b2ff82e7bd929bda7f5c17172f790ebf4ba9e39))
+
+### ⚙️ Miscellaneous Tasks
+
+- Fix CI workflow link ([#29](https://github.com/n0-computer/iroh-metrics/issues/29)) - ([edecf38](https://github.com/n0-computer/iroh-metrics/commit/edecf3803059de291405ce4f08ea3373d1349f38))
+- `cargo clippy --fix` ([#30](https://github.com/n0-computer/iroh-metrics/issues/30)) - ([466997e](https://github.com/n0-computer/iroh-metrics/commit/466997efb9bbd4e92fbfa37cbf43b69b725bd5cb))
+- Fix lifetime elision warnings with rustc 1.89 ([#32](https://github.com/n0-computer/iroh-metrics/issues/32)) - ([ed31c6b](https://github.com/n0-computer/iroh-metrics/commit/ed31c6ba165b766f647cb914e64b5e1e0ecc82d1))
+
+## [0.35.0](https://github.com/n0-computer/iroh-metrics/compare/v0.34.0..v0.35.0) - 2025-06-26
 
 ### ⛰️  Features
 
@@ -12,6 +29,7 @@ All notable changes to iroh will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(ci)* Add release script ([#26](https://github.com/n0-computer/iroh-metrics/issues/26)) - ([dcf91e4](https://github.com/n0-computer/iroh-metrics/commit/dcf91e4f373ebb6ae8847d846c9430eb6d4a1d13))
+- Release - ([cc39d5e](https://github.com/n0-computer/iroh-metrics/commit/cc39d5e579737ece0156bfd8ca81ed662c247776))
 
 ## [0.34.0](https://github.com/n0-computer/iroh-metrics/compare/v0.33.0..v0.34.0) - 2025-04-30
 
