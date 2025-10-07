@@ -6,7 +6,7 @@ use syn::{
     Error, Expr, ExprLit, Fields, Ident, Lit, LitStr,
 };
 
-#[proc_macro_derive(MetricsGroup, attributes(metrics))]
+#[proc_macro_derive(MetricsGroup, attributes(metrics, default))]
 pub fn derive_metrics_group(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let mut out = proc_macro2::TokenStream::new();
@@ -66,11 +66,39 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
 }
 
 fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
-    let (name, _fields) = parse_named_struct(input)?;
+    let (name, fields) = parse_named_struct(input)?;
     let attr = parse_metrics_attr(&input.attrs)?;
     let name_str = attr
         .name
         .unwrap_or_else(|| name.to_string().to_snake_case());
+
+    let default = if attr.default {
+        let mut items = vec![];
+        for field in fields.iter() {
+            let ident = field
+                .ident
+                .as_ref()
+                .ok_or_else(|| Error::new(field.span(), "Only named fields are supported"))?;
+            let attr = parse_default_attr(&field.attrs)?;
+            let item = if let Some(expr) = attr {
+                quote!( #ident: #expr)
+            } else {
+                quote!( #ident: ::std::default::Default::default() )
+            };
+            items.push(item);
+        }
+        Some(quote! {
+            impl ::std::default::Default for #name {
+                fn default() -> Self {
+                    Self {
+                        #(#items),*
+                    }
+                }
+            }
+        })
+    } else {
+        None
+    };
 
     Ok(quote! {
         impl ::iroh_metrics::MetricsGroup for #name {
@@ -78,6 +106,8 @@ fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error
                 #name_str
             }
         }
+
+        #default
     })
 }
 
@@ -135,6 +165,15 @@ fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
 struct MetricsAttr {
     name: Option<String>,
     help: Option<String>,
+    default: bool,
+}
+
+fn parse_default_attr(attrs: &[Attribute]) -> Result<Option<syn::Expr>, syn::Error> {
+    let Some(attr) = attrs.iter().find(|attr| attr.path().is_ident("default")) else {
+        return Ok(None);
+    };
+    let expr = attr.parse_args::<Expr>()?;
+    Ok(Some(expr))
 }
 
 fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
@@ -147,8 +186,13 @@ fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
             } else if meta.path.is_ident("help") {
                 out.help = Some(parse_lit_str(&meta)?);
                 Ok(())
+            } else if meta.path.is_ident("default") {
+                out.default = true;
+                Ok(())
             } else {
-                Err(meta.error("The `metrics` attribute supports only `name` and `help` fields."))
+                Err(meta.error(
+                    "The `metrics` attribute supports only `name`, `help` and `default` fields.",
+                ))
             }
         })?;
     }
