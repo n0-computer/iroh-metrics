@@ -2,7 +2,14 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.36.0](https://github.com/n0-computer/iroh-metrics/compare/v0.35.0..0.36.0) - 2025-10-07
+## [iroh-metrics-derive-v0.3.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.0..iroh-metrics-derive-v0.3.0) - 2025-10-07
+
+### ⚙️ Miscellaneous Tasks
+
+- Add changelog - ([9fcee22](https://github.com/n0-computer/iroh-metrics/commit/9fcee22cf7c04c3e48df5df57ace53f88f651556))
+- Release - ([279ccdc](https://github.com/n0-computer/iroh-metrics/commit/279ccdca3ccadfb15cb8b4107cce9703e37f4fea))
+
+## [0.36.0](https://github.com/n0-computer/iroh-metrics/compare/v0.35.0..v0.36.0) - 2025-10-07
 
 ### ⛰️  Features
 
@@ -18,6 +25,7 @@ All notable changes to iroh will be documented in this file.
 - Fix CI workflow link ([#29](https://github.com/n0-computer/iroh-metrics/issues/29)) - ([edecf38](https://github.com/n0-computer/iroh-metrics/commit/edecf3803059de291405ce4f08ea3373d1349f38))
 - `cargo clippy --fix` ([#30](https://github.com/n0-computer/iroh-metrics/issues/30)) - ([466997e](https://github.com/n0-computer/iroh-metrics/commit/466997efb9bbd4e92fbfa37cbf43b69b725bd5cb))
 - Fix lifetime elision warnings with rustc 1.89 ([#32](https://github.com/n0-computer/iroh-metrics/issues/32)) - ([ed31c6b](https://github.com/n0-computer/iroh-metrics/commit/ed31c6ba165b766f647cb914e64b5e1e0ecc82d1))
+- Release - ([f11384e](https://github.com/n0-computer/iroh-metrics/commit/f11384e1bce9f792f4e5ee95874329da890be678))
 
 ## [0.35.0](https://github.com/n0-computer/iroh-metrics/compare/v0.34.0..v0.35.0) - 2025-06-26
 
