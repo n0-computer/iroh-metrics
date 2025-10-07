@@ -122,7 +122,7 @@ mod tests {
     use crate::{
         encoding::{Decoder, Encoder},
         iterable::Iterable,
-        Counter, Gauge, MetricType, MetricsGroupSet, MetricsSource, Registry,
+        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
@@ -331,8 +331,8 @@ combined_bar_count_total{x="y"} 10
     fn test_derive() {
         use crate::{MetricValue, MetricsGroup};
 
-        #[derive(Debug, Default, MetricsGroup)]
-        #[metrics(name = "my-metrics")]
+        #[derive(Debug, MetricsGroup)]
+        #[metrics(default, name = "my-metrics")]
         struct Metrics {
             /// Counts foos
             ///
@@ -343,6 +343,9 @@ combined_bar_count_total{x="y"} 10
             /// This docstring is not used as prometheus help
             #[metrics(help = "Measures baz")]
             baz: Gauge,
+            #[metrics(help = "foo")]
+            #[default(Histogram::new(vec![0.0, 0.01, 0.05, 0.1, 0.2, 0.5, 1.0]))]
+            histo: Histogram,
         }
 
         let metrics = Metrics::default();
