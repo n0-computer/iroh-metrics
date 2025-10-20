@@ -2,6 +2,18 @@
 
 All notable changes to iroh will be documented in this file.
 
+## [0.36.2](https://github.com/n0-computer/iroh-metrics/compare/v0.36.1..0.36.2) - 2025-10-20
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable dependabot - ([750996d](https://github.com/n0-computer/iroh-metrics/commit/750996dff632b79702ad9e44c197f7f5b97b1490))
+
+## [0.36.1](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.3.0..v0.36.1) - 2025-10-07
+
+### ⚙️ Miscellaneous Tasks
+
+- Release - ([e370168](https://github.com/n0-computer/iroh-metrics/commit/e370168c1b54655cb1d227762c0ba3d13e320632))
+
 ## [iroh-metrics-derive-v0.3.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.0..iroh-metrics-derive-v0.3.0) - 2025-10-07
 
 ### ⚙️ Miscellaneous Tasks

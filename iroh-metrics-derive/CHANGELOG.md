@@ -2,7 +2,7 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.3.0](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.1.0..0.3.0) - 2025-10-07
+## [iroh-metrics-derive-v0.3.0](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.1.0..iroh-metrics-derive-v0.3.0) - 2025-10-07
 
 ### ⛰️  Features
 
@@ -17,6 +17,7 @@ All notable changes to iroh will be documented in this file.
 
 - Release - ([33ee40e](https://github.com/n0-computer/iroh-metrics/commit/33ee40ef8304244522156040d62cd5d5deed4d31))
 - Add changelog - ([9fcee22](https://github.com/n0-computer/iroh-metrics/commit/9fcee22cf7c04c3e48df5df57ace53f88f651556))
+- Release - ([279ccdc](https://github.com/n0-computer/iroh-metrics/commit/279ccdca3ccadfb15cb8b4107cce9703e37f4fea))
 
 ## [iroh-metrics-derive-v0.1.0](https://github.com/n0-computer/iroh-metrics/compare/v0.32.0..iroh-metrics-derive-v0.1.0) - 2025-04-16
 

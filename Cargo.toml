@@ -3,7 +3,7 @@ members = ["iroh-metrics-derive"]
 
 [package]
 name = "iroh-metrics"
-version = "0.36.1"
+version = "0.36.2"
 edition = "2021"
 readme = "README.md"
 description = "metrics for iroh"
@@ -30,7 +30,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
 unused-async = "warn"
 
 [dependencies]
-iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.3.0" }
+iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.3.1" }
 itoa = "1"
 ryu = "1"
 serde = { version = "1", features = ["derive", "rc"] }
