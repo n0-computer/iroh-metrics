@@ -45,28 +45,23 @@ extern crate self as iroh_metrics;
 
 use std::collections::HashMap;
 
-use snafu::{Backtrace, Snafu};
+// Use n0-error for error handling.
+// We qualify derive and attributes with the crate path to avoid name clashes.
 
 /// Potential errors from this library.
-#[derive(Debug, Snafu)]
+#[n0_error::stack_error(derive, add_meta, from_sources, std_sources)]
 #[non_exhaustive]
 #[allow(missing_docs)]
 pub enum Error {
     /// Indicates that the metrics have not been enabled.
-    #[snafu(display("Metrics not enabled"))]
-    NoMetrics { backtrace: Option<Backtrace> },
+    #[error("Metrics not enabled")]
+    NoMetrics,
     /// Writing the metrics to the output buffer failed.
-    #[snafu(transparent)]
-    Fmt {
-        source: std::fmt::Error,
-        backtrace: Option<Backtrace>,
-    },
+    #[error(transparent)]
+    Fmt { source: std::fmt::Error },
     /// Any IO related error.
-    #[snafu(transparent)]
-    IO {
-        source: std::io::Error,
-        backtrace: Option<Backtrace>,
-    },
+    #[error(transparent)]
+    IO { source: std::io::Error },
 }
 
 /// Parses Prometheus metrics from a string.
