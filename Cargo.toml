@@ -4,7 +4,7 @@ members = ["iroh-metrics-derive"]
 [package]
 name = "iroh-metrics"
 version = "0.36.2"
-edition = "2021"
+edition = "2024"
 readme = "README.md"
 description = "metrics for iroh"
 license = "MIT OR Apache-2.0"
