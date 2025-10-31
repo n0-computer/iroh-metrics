@@ -691,7 +691,8 @@ dependencies = [
 [[package]]
 name = "n0-error"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/n0-error?branch=main#54dea84b75d577eedc0b83ddbd0bec7ca62f0c9e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a4839a11b62f1fdd75be912ee20634053c734c2240e867ded41c7f50822c549"
 dependencies = [
  "derive_more",
  "n0-error-macros",
@@ -701,7 +702,8 @@ dependencies = [
 [[package]]
 name = "n0-error-macros"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/n0-error?branch=main#54dea84b75d577eedc0b83ddbd0bec7ca62f0c9e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ed2a7e5ca3cb5729d4a162d7bcab5b338bed299a2fee8457568d7e0a747ed89"
 dependencies = [
  "heck",
  "proc-macro2",
