@@ -12,7 +12,7 @@ authors = ["arqu <asmir@n0.computer>", "n0 team"]
 repository = "https://github.com/n0-computer/iroh-metrics"
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.81"
+rust-version = "1.85"
 
 [lints.rust]
 missing_debug_implementations = "warn"
