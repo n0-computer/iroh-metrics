@@ -45,11 +45,8 @@ extern crate self as iroh_metrics;
 
 use std::collections::HashMap;
 
-// Use n0-error for error handling.
-// We qualify derive and attributes with the crate path to avoid name clashes.
-
 /// Potential errors from this library.
-#[n0_error::stack_error(derive, add_meta, from_sources, std_sources)]
+#[n0_error::stack_error(derive, from_sources, std_sources)]
 #[non_exhaustive]
 #[allow(missing_docs)]
 pub enum Error {
