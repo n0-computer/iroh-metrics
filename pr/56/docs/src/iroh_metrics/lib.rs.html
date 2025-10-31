@@ -81,10 +81,7 @@
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#83" id="83">83</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
@@ -131,11 +128,8 @@
 
 <span class="kw">use </span>std::collections::HashMap;
 
-<span class="comment">// Use n0-error for error handling.
-// We qualify derive and attributes with the crate path to avoid name clashes.
-
-</span><span class="doccomment">/// Potential errors from this library.
-</span><span class="attr">#[n0_error::stack_error(derive, add_meta, from_sources, std_sources)]
+<span class="doccomment">/// Potential errors from this library.
+</span><span class="attr">#[n0_error::stack_error(derive, from_sources, std_sources)]
 #[non_exhaustive]
 #[allow(missing_docs)]
 </span><span class="kw">pub enum </span>Error {
