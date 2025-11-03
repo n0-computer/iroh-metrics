@@ -567,9 +567,9 @@
 <a href="#566" id="566">566</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
 
 <span class="kw">use crate</span>::{
+    Metric, MetricType, MetricValue,
     encoding::EncodableMetric,
     iterable::{FieldIter, IntoIterable, Iterable},
-    Metric, MetricType, MetricValue,
 };
 
 <span class="doccomment">/// Trait for structs containing metric items.
@@ -686,9 +686,9 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use crate</span>::{
+        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
         encoding::{Decoder, Encoder},
         iterable::Iterable,
-        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
     <span class="attr">#[derive(Debug, Iterable, Serialize, Deserialize)]

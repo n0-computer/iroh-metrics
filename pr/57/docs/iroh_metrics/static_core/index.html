@@ -9,7 +9,7 @@ Divided up into modules, each module has its own metrics.</p>
 <h2 id="example"><a class="doc-anchor" href="#example">§</a>Example:</h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span>iroh_metrics::{inc, inc_by, static_core::Core, Counter, MetricsGroup};
+<span class="kw">use </span>iroh_metrics::{Counter, MetricsGroup, inc, inc_by, static_core::Core};
 
 <span class="attr">#[derive(Debug, Default, MetricsGroup)]
 #[metrics(name = <span class="string">"my_metrics"</span>)]

@@ -187,12 +187,12 @@
     fmt::{<span class="self">self</span>, Write},
     ops::Deref,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc, RwLock,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
-<span class="kw">use crate</span>::{encoding::write_eof, Error, MetricsGroup, MetricsGroupSet};
+<span class="kw">use crate</span>::{Error, MetricsGroup, MetricsGroupSet, encoding::write_eof};
 
 <span class="doccomment">/// A registry for [`MetricsGroup`].
 </span><span class="attr">#[derive(Debug, Default)]
