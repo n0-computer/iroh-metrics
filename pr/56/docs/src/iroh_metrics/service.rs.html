@@ -201,11 +201,11 @@
     time::{Duration, Instant},
 };
 
-<span class="kw">use </span>hyper::{service::service_fn, Request, Response};
+<span class="kw">use </span>hyper::{Request, Response, service::service_fn};
 <span class="kw">use </span>tokio::{io::AsyncWriteExt <span class="kw">as _</span>, net::TcpListener};
 <span class="kw">use </span>tracing::{debug, error, info, warn};
 
-<span class="kw">use crate</span>::{parse_prometheus_metrics, Error, MetricsSource};
+<span class="kw">use crate</span>::{Error, MetricsSource, parse_prometheus_metrics};
 
 <span class="kw">type </span>BytesBody = http_body_util::Full&lt;hyper::body::Bytes&gt;;
 
