@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "0.36.2"
+version = "0.37.0"
 dependencies = [
  "erased_set",
  "http-body-util",

@@ -2,11 +2,20 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.36.2](https://github.com/n0-computer/iroh-metrics/compare/v0.36.1..0.36.2) - 2025-10-20
+## [0.37.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.2..0.37.0) - 2025-11-03
+
+### ⚙️ Miscellaneous Tasks
+
+- [**breaking**] Upgrade to rust 2024 edition and bump MSRV to 1.85 ([#57](https://github.com/n0-computer/iroh-metrics/issues/57)) - ([6c4bfb3](https://github.com/n0-computer/iroh-metrics/commit/6c4bfb39fd73f6cfcd550c572e844009e32d062e))
+- Update deps ([#58](https://github.com/n0-computer/iroh-metrics/issues/58)) - ([ae7acfd](https://github.com/n0-computer/iroh-metrics/commit/ae7acfd21fee00654a79d6f2538d12110e3bade1))
+- Release `iroh-metrics-derive` 0.4.0 - ([e632329](https://github.com/n0-computer/iroh-metrics/commit/e6323295be96142b01f3e01d8d095c917deec862))
+
+## [0.36.2](https://github.com/n0-computer/iroh-metrics/compare/v0.36.1..v0.36.2) - 2025-10-20
 
 ### ⚙️ Miscellaneous Tasks
 
 - Enable dependabot - ([750996d](https://github.com/n0-computer/iroh-metrics/commit/750996dff632b79702ad9e44c197f7f5b97b1490))
+- Release - ([41d43f9](https://github.com/n0-computer/iroh-metrics/commit/41d43f9e20ed482247f06f527b2e0322542721f2))
 
 ## [0.36.1](https://github.com/n0-computer/iroh-metrics/compare/iroh-metrics-derive-v0.3.0..v0.36.1) - 2025-10-07
 
