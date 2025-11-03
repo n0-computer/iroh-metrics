@@ -1,6 +1,6 @@
 [package]
 name = "iroh-metrics-derive"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 description = "derive macros for iroh-metrics"
 license = "MIT OR Apache-2.0"

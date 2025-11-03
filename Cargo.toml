@@ -30,7 +30,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
 unused-async = "warn"
 
 [dependencies]
-iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.3.1" }
+iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.4.0" }
 itoa = "1"
 ryu = "1"
 serde = { version = "1", features = ["derive", "rc"] }
