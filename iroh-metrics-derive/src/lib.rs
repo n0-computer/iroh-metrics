@@ -2,8 +2,8 @@ use heck::ToSnakeCase;
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    meta::ParseNestedMeta, parse_macro_input, spanned::Spanned, Attribute, Data, DeriveInput,
-    Error, Expr, ExprLit, Fields, Ident, Lit, LitStr,
+    Attribute, Data, DeriveInput, Error, Expr, ExprLit, Fields, Ident, Lit, LitStr,
+    meta::ParseNestedMeta, parse_macro_input, spanned::Spanned,
 };
 
 #[proc_macro_derive(MetricsGroup, attributes(metrics, default))]

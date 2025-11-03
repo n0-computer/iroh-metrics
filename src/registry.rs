@@ -5,12 +5,12 @@ use std::{
     fmt::{self, Write},
     ops::Deref,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc, RwLock,
+        atomic::{AtomicU64, Ordering},
     },
 };
 
-use crate::{encoding::write_eof, Error, MetricsGroup, MetricsGroupSet};
+use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::write_eof};
 
 /// A registry for [`MetricsGroup`].
 #[derive(Debug, Default)]
