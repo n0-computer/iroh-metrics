@@ -5,11 +5,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use hyper::{service::service_fn, Request, Response};
+use hyper::{Request, Response, service::service_fn};
 use tokio::{io::AsyncWriteExt as _, net::TcpListener};
 use tracing::{debug, error, info, warn};
 
-use crate::{parse_prometheus_metrics, Error, MetricsSource};
+use crate::{Error, MetricsSource, parse_prometheus_metrics};
 
 type BytesBody = http_body_util::Full<hyper::body::Bytes>;
 

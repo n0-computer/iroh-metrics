@@ -4,7 +4,7 @@ members = ["iroh-metrics-derive"]
 [package]
 name = "iroh-metrics"
 version = "0.36.2"
-edition = "2021"
+edition = "2024"
 readme = "README.md"
 description = "metrics for iroh"
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ authors = ["arqu <asmir@n0.computer>", "n0 team"]
 repository = "https://github.com/n0-computer/iroh-metrics"
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
-rust-version = "1.81"
+rust-version = "1.85"
 
 [lints.rust]
 missing_debug_implementations = "warn"

@@ -1,9 +1,9 @@
 use std::{any::Any, sync::Arc};
 
 use crate::{
+    Metric, MetricType, MetricValue,
     encoding::EncodableMetric,
     iterable::{FieldIter, IntoIterable, Iterable},
-    Metric, MetricType, MetricValue,
 };
 
 /// Trait for structs containing metric items.
@@ -120,9 +120,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
         encoding::{Decoder, Encoder},
         iterable::Iterable,
-        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
     };
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
