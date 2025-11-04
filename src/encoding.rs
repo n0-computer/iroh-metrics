@@ -10,7 +10,9 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry};
+use crate::{
+    Histogram, MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry,
+};
 
 pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
@@ -82,13 +84,26 @@ impl Default for Schema {
     }
 }
 
+/// Histogram data for transfer.
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct HistogramData {
+    /// Bucket upper bounds and cumulative counts
+    pub buckets: Vec<(f64, u64)>,
+    /// Sum of all observed values
+    pub sum: f64,
+    /// Total count of observations
+    pub count: u64,
+}
+
 /// A collection of metric values.
 ///
 /// Contains the actual values for a set of metrics.
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct Values {
-    /// The individual metric values
+    /// The individual metric values (Counter and Gauge)
     pub items: Vec<MetricValue>,
+    /// Histogram data (indexed by position in schema)
+    pub histograms: Vec<Option<HistogramData>>,
 }
 
 /// An update containing schema and/or values for metrics.
@@ -192,6 +207,11 @@ impl Decoder {
             pos: 0,
             inner: self,
         }
+    }
+
+    /// Gets histogram data for the metric at the given index, if available.
+    pub fn get_histogram(&self, index: usize) -> Option<&HistogramData> {
+        self.values.histograms.get(index).and_then(|h| h.as_ref())
     }
 }
 
@@ -443,7 +463,23 @@ impl MetricItem<'_> {
     }
 
     fn encode_value(&self, values: &mut Values) {
-        values.items.push(self.value())
+        values.items.push(self.value());
+
+        // Extract histogram data if this is a histogram
+        if self.r#type() == MetricType::Histogram {
+            if let Some(histogram) = self.as_any().downcast_ref::<Histogram>() {
+                let histogram_data = HistogramData {
+                    buckets: histogram.buckets(),
+                    sum: histogram.sum(),
+                    count: histogram.count(),
+                };
+                values.histograms.push(Some(histogram_data));
+            } else {
+                values.histograms.push(None);
+            }
+        } else {
+            values.histograms.push(None);
+        }
     }
 
     pub(crate) fn encode_openmetrics<'a>(
