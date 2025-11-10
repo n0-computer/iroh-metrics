@@ -563,4 +563,133 @@ combined_bar_count_total{x="y"} 10
             panic!("Expected histogram value, got {:?}", histogram_sample.value);
         }
     }
+
+    #[test]
+    fn test_histogram_encode_decode() {
+        use std::sync::{Arc, RwLock};
+
+        use crate::Histogram;
+
+        #[derive(Debug, Iterable)]
+        pub struct HistogramMetrics {
+            pub response_time: Histogram,
+        }
+
+        impl MetricsGroup for HistogramMetrics {
+            fn name(&self) -> &'static str {
+                "http"
+            }
+        }
+
+        let mut registry = Registry::default();
+        let metrics = Arc::new(HistogramMetrics {
+            response_time: Histogram::new(vec![0.1, 0.5, 1.0, 5.0, f64::INFINITY]),
+        });
+        registry.register(metrics.clone());
+
+        metrics.response_time.observe(0.05);
+        metrics.response_time.observe(0.3);
+        metrics.response_time.observe(0.8);
+        metrics.response_time.observe(2.5);
+
+        let registry = Arc::new(RwLock::new(registry));
+
+        let mut encoder = Encoder::new(registry.clone());
+        let update = encoder.export_bytes().unwrap();
+
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+
+        let mut items = decoder.iter();
+        let item = items.next().expect("Expected one metric");
+
+        if let MetricValue::Histogram {
+            buckets,
+            sum,
+            count,
+        } = item.value
+        {
+            assert_eq!(*count, 4);
+            assert_eq!(*sum, 3.65);
+            assert_eq!(buckets.len(), 5);
+            assert_eq!(buckets[0], (0.1, 1));
+            assert_eq!(buckets[1], (0.5, 2));
+            assert_eq!(buckets[2], (1.0, 3));
+            assert_eq!(buckets[3], (5.0, 4));
+            assert_eq!(buckets[4], (f64::INFINITY, 4));
+        } else {
+            panic!("Expected histogram value");
+        }
+
+        metrics.response_time.observe(0.02);
+        metrics.response_time.observe(1.5);
+
+        let update = encoder.export_bytes().unwrap();
+        decoder.import_bytes(&update).unwrap();
+
+        let mut items = decoder.iter();
+        let item = items.next().expect("Expected one metric");
+
+        if let MetricValue::Histogram {
+            buckets,
+            sum,
+            count,
+        } = item.value
+        {
+            assert_eq!(*count, 6);
+            assert_eq!(*sum, 5.17);
+            assert_eq!(buckets[0], (0.1, 2)); // 0.05, 0.02
+            assert_eq!(buckets[1], (0.5, 3)); // + 0.3
+            assert_eq!(buckets[2], (1.0, 4)); // + 0.8
+            assert_eq!(buckets[3], (5.0, 6)); // + 2.5, 1.5
+            assert_eq!(buckets[4], (f64::INFINITY, 6));
+        } else {
+            panic!("Expected histogram value");
+        }
+    }
+
+    #[test]
+    fn test_histogram_openmetrics_from_decoder() {
+        use std::sync::{Arc, RwLock};
+
+        use crate::Histogram;
+
+        #[derive(Debug, Iterable)]
+        pub struct HistogramMetrics {
+            pub response_time: Histogram,
+        }
+
+        impl MetricsGroup for HistogramMetrics {
+            fn name(&self) -> &'static str {
+                "http"
+            }
+        }
+
+        let mut registry = Registry::default();
+        let metrics = Arc::new(HistogramMetrics {
+            response_time: Histogram::new(vec![0.1, 0.5, 1.0, 5.0, f64::INFINITY]),
+        });
+        registry.register(metrics.clone());
+
+        metrics.response_time.observe(0.05);
+        metrics.response_time.observe(0.3);
+        metrics.response_time.observe(0.8);
+        metrics.response_time.observe(2.5);
+
+        let om_from_registry = registry.encode_openmetrics_to_string().unwrap();
+
+        let registry = Arc::new(RwLock::new(registry));
+        let mut encoder = Encoder::new(registry.clone());
+        let update = encoder.export_bytes().unwrap();
+
+        let mut decoder = Decoder::default();
+        decoder.import_bytes(&update).unwrap();
+
+        let om_from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+
+        assert_eq!(
+            om_from_decoder, om_from_registry,
+            "Decoder should produce identical OpenMetrics output to registry for histograms"
+        );
+    }
 }

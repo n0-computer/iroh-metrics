@@ -16,6 +16,65 @@ pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
+/// Helper function to encode histogram data in OpenMetrics format.
+fn encode_histogram_data<'a>(
+    writer: &mut impl Write,
+    name: &str,
+    prefixes: &[impl AsRef<str>],
+    labels: &[(&'a str, &'a str)],
+    histogram_data: &HistogramData,
+) -> fmt::Result {
+    // Write buckets
+    for (upper_bound, count) in &histogram_data.buckets {
+        write_prefix_name(writer, prefixes, name)?;
+        writer.write_str("_bucket")?;
+        writer.write_char('{')?;
+        for (i, (key, value)) in labels.iter().enumerate() {
+            if i > 0 {
+                writer.write_char(',')?;
+            }
+            writer.write_str(key)?;
+            writer.write_str("=\"")?;
+            writer.write_str(value)?;
+            writer.write_char('"')?;
+        }
+        if !labels.is_empty() {
+            writer.write_char(',')?;
+        }
+        writer.write_str("le=\"")?;
+        if *upper_bound == f64::INFINITY {
+            writer.write_str("+Inf")?;
+        } else {
+            writer.write_str(ryu::Buffer::new().format(*upper_bound))?;
+        }
+        writer.write_str("\"} ")?;
+        encode_u64(writer, *count)?;
+        writer.write_str("\n")?;
+    }
+
+    // Write sum
+    write_prefix_name(writer, prefixes, name)?;
+    writer.write_str("_sum")?;
+    if !labels.is_empty() {
+        write_labels(writer, labels.iter().copied())?;
+    }
+    writer.write_char(' ')?;
+    encode_f64(writer, histogram_data.sum)?;
+    writer.write_str("\n")?;
+
+    // Write count
+    write_prefix_name(writer, prefixes, name)?;
+    writer.write_str("_count")?;
+    if !labels.is_empty() {
+        write_labels(writer, labels.iter().copied())?;
+    }
+    writer.write_char(' ')?;
+    encode_u64(writer, histogram_data.count)?;
+    writer.write_str("\n")?;
+
+    Ok(())
+}
+
 /// Writes `# EOF\n` to `writer`.
 ///
 /// This is the expected last characters of an OpenMetrics string.
@@ -82,6 +141,19 @@ impl Default for Schema {
     }
 }
 
+/// Histogram data wrapper
+///
+/// Contains the bucket counts, sum, and total count for a histogram metric.
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct HistogramData {
+    /// Bucket upper bounds and cumulative counts
+    pub buckets: Vec<(f64, u64)>,
+    /// Sum of all observed values
+    pub sum: f64,
+    /// Total count of observations
+    pub count: u64,
+}
+
 /// A collection of metric values.
 ///
 /// Contains the actual values for a set of metrics.
@@ -130,7 +202,7 @@ impl EncodableMetric for Item<'_> {
     }
 
     fn value(&self) -> MetricValue {
-        *self.value
+        self.value.clone()
     }
 }
 
@@ -399,24 +471,36 @@ pub(crate) trait EncodableMetric {
         writer.write_str(self.r#type().as_str())?;
         writer.write_str("\n")?;
 
-        write_prefix_name(writer, prefixes, self.name())?;
-        let suffix = match self.r#type() {
-            MetricType::Counter => "_total",
-            MetricType::Gauge => "",
-            MetricType::Histogram => "",
-        };
-        writer.write_str(suffix)?;
-        write_labels(writer, labels)?;
-        writer.write_char(' ')?;
         match self.value() {
+            MetricValue::Histogram {
+                buckets,
+                sum,
+                count,
+            } => {
+                let labels_vec: Vec<_> = labels.collect();
+                let histogram_data = HistogramData {
+                    buckets,
+                    sum,
+                    count,
+                };
+                encode_histogram_data(writer, self.name(), prefixes, &labels_vec, &histogram_data)?;
+            }
             MetricValue::Counter(value) => {
+                write_prefix_name(writer, prefixes, self.name())?;
+                writer.write_str("_total")?;
+                write_labels(writer, labels)?;
+                writer.write_char(' ')?;
                 encode_u64(writer, value)?;
+                writer.write_str("\n")?;
             }
             MetricValue::Gauge(value) => {
+                write_prefix_name(writer, prefixes, self.name())?;
+                write_labels(writer, labels)?;
+                writer.write_char(' ')?;
                 encode_i64(writer, value)?;
+                writer.write_str("\n")?;
             }
         }
-        writer.write_str("\n")?;
         Ok(())
     }
 }
@@ -443,7 +527,7 @@ impl MetricItem<'_> {
     }
 
     fn encode_value(&self, values: &mut Values) {
-        values.items.push(self.value())
+        values.items.push(self.value());
     }
 
     pub(crate) fn encode_openmetrics<'a>(
@@ -452,92 +536,7 @@ impl MetricItem<'_> {
         prefixes: &[impl AsRef<str>],
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) -> fmt::Result {
-        use crate::Histogram;
-
-        writer.write_str("# HELP ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
-        writer.write_str(" ")?;
-        writer.write_str(self.help())?;
-        writer.write_str(".\n")?;
-
-        writer.write_str("# TYPE ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
-        writer.write_str(" ")?;
-        writer.write_str(self.r#type().as_str())?;
-        writer.write_str("\n")?;
-
-        if self.r#type() == MetricType::Histogram {
-            if let Some(histogram) = self.as_any().downcast_ref::<Histogram>() {
-                let labels_vec: Vec<_> = labels.collect();
-
-                for (upper_bound, count) in histogram.buckets() {
-                    write_prefix_name(writer, prefixes, self.name())?;
-                    writer.write_str("_bucket")?;
-                    writer.write_char('{')?;
-                    for (i, (key, value)) in labels_vec.iter().enumerate() {
-                        if i > 0 {
-                            writer.write_char(',')?;
-                        }
-                        writer.write_str(key)?;
-                        writer.write_str("=\"")?;
-                        writer.write_str(value)?;
-                        writer.write_char('"')?;
-                    }
-                    if !labels_vec.is_empty() {
-                        writer.write_char(',')?;
-                    }
-                    writer.write_str("le=\"")?;
-                    if upper_bound == f64::INFINITY {
-                        writer.write_str("+Inf")?;
-                    } else {
-                        writer.write_str(ryu::Buffer::new().format(upper_bound))?;
-                    }
-                    writer.write_str("\"} ")?;
-                    encode_u64(writer, count)?;
-                    writer.write_str("\n")?;
-                }
-
-                write_prefix_name(writer, prefixes, self.name())?;
-                writer.write_str("_sum")?;
-                if !labels_vec.is_empty() {
-                    write_labels(writer, labels_vec.iter().copied())?;
-                }
-                writer.write_char(' ')?;
-                encode_f64(writer, histogram.sum())?;
-                writer.write_str("\n")?;
-
-                write_prefix_name(writer, prefixes, self.name())?;
-                writer.write_str("_count")?;
-                if !labels_vec.is_empty() {
-                    write_labels(writer, labels_vec.iter().copied())?;
-                }
-                writer.write_char(' ')?;
-                encode_u64(writer, histogram.count())?;
-                writer.write_str("\n")?;
-
-                return Ok(());
-            }
-        }
-
-        write_prefix_name(writer, prefixes, self.name())?;
-        let suffix = match self.r#type() {
-            MetricType::Counter => "_total",
-            MetricType::Gauge => "",
-            MetricType::Histogram => "",
-        };
-        writer.write_str(suffix)?;
-        write_labels(writer, labels)?;
-        writer.write_char(' ')?;
-        match self.value() {
-            MetricValue::Counter(value) => {
-                encode_u64(writer, value)?;
-            }
-            MetricValue::Gauge(value) => {
-                encode_i64(writer, value)?;
-            }
-        }
-        writer.write_str("\n")?;
-        Ok(())
+        EncodableMetric::encode_openmetrics(self, writer, prefixes, labels)
     }
 }
 

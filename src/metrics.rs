@@ -36,13 +36,22 @@ impl MetricType {
 }
 
 /// The value of an individual metric item.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum MetricValue {
     /// A [`Counter`] value.
     Counter(u64),
     /// A [`Gauge`] value.
     Gauge(i64),
+    /// A [`Histogram`] value with buckets, sum, and count.
+    Histogram {
+        /// Bucket upper bounds and cumulative counts
+        buckets: Vec<(f64, u64)>,
+        /// Sum of all observed values
+        sum: f64,
+        /// Total count of observations
+        count: u64,
+    },
 }
 
 impl MetricValue {
@@ -51,6 +60,7 @@ impl MetricValue {
         match self {
             MetricValue::Counter(value) => *value as f32,
             MetricValue::Gauge(value) => *value as f32,
+            MetricValue::Histogram { count, .. } => *count as f32,
         }
     }
 
@@ -59,6 +69,7 @@ impl MetricValue {
         match self {
             MetricValue::Counter(_) => MetricType::Counter,
             MetricValue::Gauge(_) => MetricType::Gauge,
+            MetricValue::Histogram { .. } => MetricType::Histogram,
         }
     }
 }
@@ -69,7 +80,7 @@ impl Metric for MetricValue {
     }
 
     fn value(&self) -> MetricValue {
-        *self
+        self.clone()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -328,7 +339,11 @@ impl Metric for Histogram {
     }
 
     fn value(&self) -> MetricValue {
-        MetricValue::Gauge(self.count() as i64)
+        MetricValue::Histogram {
+            buckets: self.buckets(),
+            sum: self.sum(),
+            count: self.count(),
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
