@@ -142,7 +142,7 @@ impl Default for Schema {
 }
 
 /// Histogram data wrapper
-/// 
+///
 /// Contains the bucket counts, sum, and total count for a histogram metric.
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct HistogramData {
