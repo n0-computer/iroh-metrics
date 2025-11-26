@@ -230,7 +230,7 @@ impl Item<'_> {
 /// Decoder for metrics received from an [`Encoder`]
 ///
 /// Implements [`MetricsSource`] to export the decoded metrics to OpenMetrics.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Decoder {
     schema: Option<Schema>,
     values: Values,
