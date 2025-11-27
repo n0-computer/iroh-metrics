@@ -2,13 +2,24 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.37.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.2..0.37.0) - 2025-11-03
+## [0.38.0](https://github.com/n0-computer/iroh-metrics/compare/v0.37.0..0.38.0) - 2025-11-27
+
+### ⛰️  Features
+
+- *(encoding)* Make decoder clone ([#67](https://github.com/n0-computer/iroh-metrics/issues/67)) - ([9baf88c](https://github.com/n0-computer/iroh-metrics/commit/9baf88c2e3a2a75cd6fa305af61b74cc814402d9))
+
+### 🚜 Refactor
+
+- *(histogram)* [**breaking**] Make histograms encodeable and more integrated ([#59](https://github.com/n0-computer/iroh-metrics/issues/59)) - ([b8f1876](https://github.com/n0-computer/iroh-metrics/commit/b8f18760e5560f2329ee551da6fa38fabc1cc92d))
+
+## [0.37.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.2..v0.37.0) - 2025-11-03
 
 ### ⚙️ Miscellaneous Tasks
 
 - [**breaking**] Upgrade to rust 2024 edition and bump MSRV to 1.85 ([#57](https://github.com/n0-computer/iroh-metrics/issues/57)) - ([6c4bfb3](https://github.com/n0-computer/iroh-metrics/commit/6c4bfb39fd73f6cfcd550c572e844009e32d062e))
 - Update deps ([#58](https://github.com/n0-computer/iroh-metrics/issues/58)) - ([ae7acfd](https://github.com/n0-computer/iroh-metrics/commit/ae7acfd21fee00654a79d6f2538d12110e3bade1))
 - Release `iroh-metrics-derive` 0.4.0 - ([e632329](https://github.com/n0-computer/iroh-metrics/commit/e6323295be96142b01f3e01d8d095c917deec862))
+- Release - ([d1aa8a6](https://github.com/n0-computer/iroh-metrics/commit/d1aa8a653b0601edda0c0c35cc3088778bf6cf95))
 
 ## [0.36.2](https://github.com/n0-computer/iroh-metrics/compare/v0.36.1..v0.36.2) - 2025-10-20
 
