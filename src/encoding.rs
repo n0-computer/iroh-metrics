@@ -10,7 +10,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry};
+use crate::{
+    MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry,
+    iterable::IntoIterable,
+};
 
 pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
@@ -48,14 +51,15 @@ pub(crate) fn encode_value_item(values: &mut Values, value: MetricValue) {
 }
 
 /// Encodes a metric value (without HELP/TYPE headers) in OpenMetrics format.
-pub(crate) fn encode_metric_value<K, V>(
-    writer: &mut impl Write,
+pub(crate) fn encode_metric_value<W, K, V>(
+    writer: &mut W,
     name: &str,
     prefixes: &[impl AsRef<str>],
     labels: &[(K, V)],
     value: &MetricValue,
 ) -> fmt::Result
 where
+    W: Write + ?Sized,
     K: AsRef<str>,
     V: AsRef<str>,
 {
@@ -107,8 +111,9 @@ where
     Ok(())
 }
 
-fn write_labels_slice<K, V>(w: &mut impl Write, labels: &[(K, V)], le: Option<f64>) -> fmt::Result
+fn write_labels_slice<W, K, V>(w: &mut W, labels: &[(K, V)], le: Option<f64>) -> fmt::Result
 where
+    W: Write + ?Sized,
     K: AsRef<str>,
     V: AsRef<str>,
 {
@@ -476,11 +481,17 @@ impl dyn MetricsGroup {
             let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_schema(schema, prefixes, labels);
         }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_schema(schema, prefixes, labels);
+        }
     }
 
     pub(crate) fn encode_values(&self, values: &mut Values) {
         for metric in self.iter() {
             metric.encode_value(values);
+        }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_values(values);
         }
     }
 
@@ -499,6 +510,9 @@ impl dyn MetricsGroup {
         for metric in self.iter() {
             let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_openmetrics(writer, prefixes, labels)?;
+        }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_openmetrics(writer, prefixes, labels)?;
         }
         Ok(())
     }
@@ -575,23 +589,23 @@ impl MetricItem<'_> {
     }
 }
 
-pub(crate) fn encode_u64(writer: &mut impl Write, v: u64) -> fmt::Result {
+pub(crate) fn encode_u64(writer: &mut (impl Write + ?Sized), v: u64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-pub(crate) fn encode_i64(writer: &mut impl Write, v: i64) -> fmt::Result {
+pub(crate) fn encode_i64(writer: &mut (impl Write + ?Sized), v: i64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-pub(crate) fn encode_f64(writer: &mut impl Write, v: f64) -> fmt::Result {
+pub(crate) fn encode_f64(writer: &mut (impl Write + ?Sized), v: f64) -> fmt::Result {
     writer.write_str(ryu::Buffer::new().format(v))?;
     Ok(())
 }
 
 pub(crate) fn write_prefix_name(
-    writer: &mut impl Write,
+    writer: &mut (impl Write + ?Sized),
     prefixes: &[impl AsRef<str>],
     name: &str,
 ) -> fmt::Result {

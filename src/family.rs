@@ -24,6 +24,99 @@ use crate::{
     labels::EncodeLabelSet,
 };
 
+/// Trait for type-erased Family encoding.
+///
+/// Implemented by `Family<L, M>` to enable dynamic dispatch in derive macros.
+pub trait FamilyEncoder: Send + Sync + 'static {
+    /// Encodes to OpenMetrics text format.
+    fn encode_openmetrics_dyn(
+        &self,
+        writer: &mut dyn Write,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(&str, &str)],
+    ) -> fmt::Result;
+
+    /// Encodes schema for binary encoding.
+    fn encode_schema_dyn(
+        &self,
+        schema: &mut Schema,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    );
+
+    /// Encodes values for binary encoding.
+    fn encode_values_dyn(&self, values: &mut Values);
+
+    /// Returns true if the family has no entries.
+    fn is_empty_dyn(&self) -> bool;
+}
+
+/// A family metric item for iteration.
+#[derive(Clone, Copy)]
+pub struct FamilyItem<'a> {
+    pub(crate) name: &'static str,
+    pub(crate) help: &'static str,
+    pub(crate) family: &'a dyn FamilyEncoder,
+}
+
+impl fmt::Debug for FamilyItem<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FamilyItem")
+            .field("name", &self.name)
+            .field("help", &self.help)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> FamilyItem<'a> {
+    /// Creates a new family item.
+    pub fn new(name: &'static str, help: &'static str, family: &'a dyn FamilyEncoder) -> Self {
+        Self { name, help, family }
+    }
+
+    /// Returns the name of this family.
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the help text of this family.
+    pub fn help(&self) -> &'static str {
+        self.help
+    }
+
+    /// Returns true if the family has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.family.is_empty_dyn()
+    }
+
+    /// Encodes to OpenMetrics text format.
+    pub fn encode_openmetrics(
+        &self,
+        writer: &mut dyn fmt::Write,
+        prefixes: &[&str],
+        labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) -> fmt::Result {
+        let labels: Vec<_> = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect();
+        self.family
+            .encode_openmetrics_dyn(writer, self.name, self.help, prefixes, &labels)
+    }
+
+    /// Encodes schema for binary encoding.
+    pub fn encode_schema(&self, schema: &mut Schema, prefixes: &[&str], labels: &[(Cow<'_, str>, Cow<'_, str>)]) {
+        self.family
+            .encode_schema_dyn(schema, self.name, self.help, prefixes, labels);
+    }
+
+    /// Encodes values for binary encoding.
+    pub fn encode_values(&self, values: &mut Values) {
+        self.family.encode_values_dyn(values);
+    }
+}
+
 type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
 
 /// A family of metrics indexed by labels.
@@ -210,6 +303,74 @@ where
             inner: Arc::clone(&self.inner),
             constructor: Arc::clone(&self.constructor),
         }
+    }
+}
+
+impl<L, M> FamilyEncoder for Family<L, M>
+where
+    L: EncodeLabelSet + Ord,
+    M: Metric + 'static,
+{
+    fn encode_openmetrics_dyn(
+        &self,
+        writer: &mut dyn Write,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(&str, &str)],
+    ) -> fmt::Result {
+        let guard = self.inner.read();
+        if guard.is_empty() {
+            return Ok(());
+        }
+
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        let metric_type = entries[0].1.r#type();
+        let reg_labels: Vec<_> = registry_labels
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+
+        writer.write_str("# HELP ")?;
+        write_prefix_name(writer, prefixes, name)?;
+        writeln!(writer, " {help}.")?;
+
+        writer.write_str("# TYPE ")?;
+        write_prefix_name(writer, prefixes, name)?;
+        writeln!(writer, " {}", metric_type.as_str())?;
+
+        for (labels, metric) in entries {
+            let mut all_labels = reg_labels.clone();
+            all_labels.extend(
+                labels
+                    .encode_label_pairs()
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
+            );
+            encode_metric_value(writer, name, prefixes, &all_labels, &metric.value())?;
+        }
+        Ok(())
+    }
+
+    fn encode_schema_dyn(
+        &self,
+        schema: &mut Schema,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
+        self.encode_schema(schema, name, help, prefixes, registry_labels);
+    }
+
+    fn encode_values_dyn(&self, values: &mut Values) {
+        self.encode_values(values);
+    }
+
+    fn is_empty_dyn(&self) -> bool {
+        self.is_empty()
     }
 }
 
