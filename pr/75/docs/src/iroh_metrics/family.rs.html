@@ -759,20 +759,7 @@
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
+<a href="#761" id="761">761</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
 //!
 //! A [`Family`] is a collection of metrics indexed by label sets. Targeted for
 //! low cardinality (tens to ~100 label combinations). For high cardinality,
@@ -879,12 +866,12 @@
         prefixes: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
         labels: <span class="kw-2">&amp;</span>[(Cow&lt;<span class="lifetime">'_</span>, str&gt;, Cow&lt;<span class="lifetime">'_</span>, str&gt;)],
     ) -&gt; fmt::Result {
-        <span class="kw">let </span>labels: Vec&lt;<span class="kw">_</span>&gt; = labels
+        <span class="kw">let </span>label_refs: Vec&lt;<span class="kw">_</span>&gt; = labels
             .iter()
             .map(|(k, v)| (k.as_ref(), v.as_ref()))
             .collect();
         <span class="self">self</span>.family
-            .encode_openmetrics_dyn(writer, <span class="self">self</span>.name, <span class="self">self</span>.help, prefixes, <span class="kw-2">&amp;</span>labels)
+            .encode_openmetrics_dyn(writer, <span class="self">self</span>.name, <span class="self">self</span>.help, prefixes, <span class="kw-2">&amp;</span>label_refs)
     }
 
     <span class="doccomment">/// Encodes schema for binary encoding.
@@ -997,11 +984,28 @@
     <span class="doccomment">/// Encodes to OpenMetrics text format.
     </span><span class="kw">pub fn </span>encode_openmetrics&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write,
+        writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized),
         name: <span class="kw-2">&amp;</span>str,
         help: <span class="kw-2">&amp;</span>str,
         prefixes: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
         registry_labels: <span class="kw">impl </span>Iterator&lt;Item = (<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str)&gt;,
+    ) -&gt; fmt::Result
+    <span class="kw">where
+        </span>L: Ord,
+    {
+        <span class="kw">let </span>reg_labels: Vec&lt;<span class="kw">_</span>&gt; = registry_labels
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        <span class="self">self</span>.encode_openmetrics_impl(writer, name, help, prefixes, <span class="kw-2">&amp;</span>reg_labels)
+    }
+
+    <span class="kw">fn </span>encode_openmetrics_impl(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized),
+        name: <span class="kw-2">&amp;</span>str,
+        help: <span class="kw-2">&amp;</span>str,
+        prefixes: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
+        registry_labels: <span class="kw-2">&amp;</span>[(String, String)],
     ) -&gt; fmt::Result
     <span class="kw">where
         </span>L: Ord,
@@ -1015,9 +1019,6 @@
         entries.sort_by(|(a, <span class="kw">_</span>), (b, <span class="kw">_</span>)| a.cmp(b));
 
         <span class="kw">let </span>metric_type = entries[<span class="number">0</span>].<span class="number">1</span>.r#type();
-        <span class="kw">let </span>reg_labels: Vec&lt;<span class="kw">_</span>&gt; = registry_labels
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
 
         writer.write_str(<span class="string">"# HELP "</span>)<span class="question-mark">?</span>;
         write_prefix_name(writer, prefixes, name)<span class="question-mark">?</span>;
@@ -1027,10 +1028,10 @@
         write_prefix_name(writer, prefixes, name)<span class="question-mark">?</span>;
         <span class="macro">writeln!</span>(writer, <span class="string">" {}"</span>, metric_type.as_str())<span class="question-mark">?</span>;
 
-        <span class="kw">for </span>(labels, metric) <span class="kw">in </span>entries {
-            <span class="kw">let </span><span class="kw-2">mut </span>all_labels = reg_labels.clone();
+        <span class="kw">for </span>(label_set, metric) <span class="kw">in </span>entries {
+            <span class="kw">let </span><span class="kw-2">mut </span>all_labels = registry_labels.to_vec();
             all_labels.extend(
-                labels
+                label_set
                     .encode_label_pairs()
                     .into_iter()
                     .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
@@ -1227,39 +1228,11 @@
         prefixes: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
         registry_labels: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)],
     ) -&gt; fmt::Result {
-        <span class="kw">let </span>guard = <span class="self">self</span>.inner.read();
-        <span class="kw">if </span>guard.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>entries: Vec&lt;<span class="kw">_</span>&gt; = guard.iter().collect();
-        entries.sort_by(|(a, <span class="kw">_</span>), (b, <span class="kw">_</span>)| a.cmp(b));
-
-        <span class="kw">let </span>metric_type = entries[<span class="number">0</span>].<span class="number">1</span>.r#type();
         <span class="kw">let </span>reg_labels: Vec&lt;<span class="kw">_</span>&gt; = registry_labels
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-
-        writer.write_str(<span class="string">"# HELP "</span>)<span class="question-mark">?</span>;
-        write_prefix_name(writer, prefixes, name)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(writer, <span class="string">" {help}."</span>)<span class="question-mark">?</span>;
-
-        writer.write_str(<span class="string">"# TYPE "</span>)<span class="question-mark">?</span>;
-        write_prefix_name(writer, prefixes, name)<span class="question-mark">?</span>;
-        <span class="macro">writeln!</span>(writer, <span class="string">" {}"</span>, metric_type.as_str())<span class="question-mark">?</span>;
-
-        <span class="kw">for </span>(labels, metric) <span class="kw">in </span>entries {
-            <span class="kw">let </span><span class="kw-2">mut </span>all_labels = reg_labels.clone();
-            all_labels.extend(
-                labels
-                    .encode_label_pairs()
-                    .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
-            );
-            encode_metric_value(writer, name, prefixes, <span class="kw-2">&amp;</span>all_labels, <span class="kw-2">&amp;</span>metric.value())<span class="question-mark">?</span>;
-        }
-        <span class="prelude-val">Ok</span>(())
+        <span class="self">self</span>.encode_openmetrics_impl(writer, name, help, prefixes, <span class="kw-2">&amp;</span>reg_labels)
     }
 
     <span class="kw">fn </span>encode_schema_dyn(
@@ -1327,13 +1300,14 @@
     <span class="kw">fn </span>deserialize&lt;D: Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
         <span class="kw">let </span>entries: Vec&lt;(L, MetricValue)&gt; = Vec::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="kw">let </span>family = Family::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>guard = family.inner.write();
-        <span class="kw">for </span>(labels, value) <span class="kw">in </span>entries {
-            <span class="kw">let </span>metric = Arc::new(M::default());
-            metric.set_value(value);
-            guard.insert(labels, metric);
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>guard = family.inner.write();
+            <span class="kw">for </span>(labels, value) <span class="kw">in </span>entries {
+                <span class="kw">let </span>metric = Arc::new(M::default());
+                metric.set_value(value);
+                guard.insert(labels, metric);
+            }
         }
-        drop(guard);
         <span class="prelude-val">Ok</span>(family)
     }
 }
