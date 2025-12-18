@@ -30,6 +30,14 @@ pub fn derive_metrics_group_set(input: TokenStream) -> TokenStream {
     out.into()
 }
 
+#[proc_macro_derive(EncodeLabelSet, attributes(label))]
+pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    expand_encode_label_set(&input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
 fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
     let (name, fields) = parse_named_struct(input)?;
 
@@ -147,6 +155,40 @@ fn expand_metrics_group_set(input: &DeriveInput) -> Result<proc_macro2::TokenStr
     })
 }
 
+fn expand_encode_label_set(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
+    let (name, fields) = parse_named_struct(input)?;
+
+    let mut label_pairs = vec![];
+    for field in fields.iter() {
+        let ident = field
+            .ident
+            .as_ref()
+            .ok_or_else(|| Error::new(field.span(), "Only named fields are supported"))?;
+        let attr = parse_label_attr(&field.attrs)?;
+
+        // Skip fields marked with #[label(skip)]
+        if attr.skip {
+            continue;
+        }
+
+        // Use custom name or field name
+        let label_name = attr.name.unwrap_or_else(|| ident.to_string());
+
+        // Generate the label pair based on field type
+        label_pairs.push(quote! {
+            (#label_name, ::iroh_metrics::LabelValue::from(self.#ident.clone()))
+        });
+    }
+
+    Ok(quote! {
+        impl ::iroh_metrics::EncodeLabelSet for #name {
+            fn encode_label_pairs(&self) -> ::std::vec::Vec<::iroh_metrics::LabelPair<'_>> {
+                ::std::vec![#(#label_pairs),*]
+            }
+        }
+    })
+}
+
 fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
     attrs
         .iter()
@@ -166,6 +208,12 @@ struct MetricsAttr {
     name: Option<String>,
     help: Option<String>,
     default: bool,
+}
+
+#[derive(Default)]
+struct LabelAttr {
+    name: Option<String>,
+    skip: bool,
 }
 
 fn parse_default_attr(attrs: &[Attribute]) -> Result<Option<syn::Expr>, syn::Error> {
@@ -193,6 +241,24 @@ fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
                 Err(meta.error(
                     "The `metrics` attribute supports only `name`, `help` and `default` fields.",
                 ))
+            }
+        })?;
+    }
+    Ok(out)
+}
+
+fn parse_label_attr(attrs: &[Attribute]) -> Result<LabelAttr, syn::Error> {
+    let mut out = LabelAttr::default();
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("label")) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("name") {
+                out.name = Some(parse_lit_str(&meta)?);
+                Ok(())
+            } else if meta.path.is_ident("skip") {
+                out.skip = true;
+                Ok(())
+            } else {
+                Err(meta.error("The `label` attribute supports only `name` and `skip` fields."))
             }
         })?;
     }
