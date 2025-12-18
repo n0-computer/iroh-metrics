@@ -83,18 +83,28 @@ impl Metric for MetricValue {
         self.clone()
     }
 
+    fn set_value(&self, _value: MetricValue) {
+        // MetricValue is immutable, this is a no-op
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 }
 
 /// Trait for metric items.
-pub trait Metric: std::fmt::Debug {
+pub trait Metric: std::fmt::Debug + Send + Sync {
     /// Returns the type of this metric.
     fn r#type(&self) -> MetricType;
 
     /// Returns the current value of this metric.
     fn value(&self) -> MetricValue;
+
+    /// Sets the value of this metric from a [`MetricValue`].
+    ///
+    /// This is used for deserialization. If the value type doesn't match,
+    /// the implementation should silently ignore the value.
+    fn set_value(&self, value: MetricValue);
 
     /// Casts this metric to [`Any`] for downcasting to concrete types.
     fn as_any(&self) -> &dyn Any;
@@ -117,6 +127,12 @@ impl Metric for Counter {
 
     fn r#type(&self) -> MetricType {
         MetricType::Counter
+    }
+
+    fn set_value(&self, value: MetricValue) {
+        if let MetricValue::Counter(v) = value {
+            self.set(v);
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -346,6 +362,41 @@ impl Metric for Histogram {
         }
     }
 
+    fn set_value(&self, value: MetricValue) {
+        #[cfg(feature = "metrics")]
+        if let MetricValue::Histogram {
+            buckets,
+            sum,
+            count,
+        } = value
+        {
+            // Only set if bucket count matches
+            if buckets.len() != self.buckets.len() {
+                return;
+            }
+
+            // Validate cumulative counts are monotonically increasing
+            for i in 1..buckets.len() {
+                if buckets[i].1 < buckets[i - 1].1 {
+                    return;
+                }
+            }
+
+            self.count.store(count, Ordering::Relaxed);
+            self.sum.store(sum.to_bits(), Ordering::Relaxed);
+
+            // Convert cumulative counts back to individual bucket counts
+            for (i, (_, cumulative)) in buckets.iter().enumerate() {
+                let prev = if i > 0 { buckets[i - 1].1 } else { 0 };
+                self.counts[i].store(cumulative - prev, Ordering::Relaxed);
+            }
+        }
+        #[cfg(not(feature = "metrics"))]
+        {
+            let _ = value;
+        }
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -358,6 +409,12 @@ impl Metric for Gauge {
 
     fn value(&self) -> MetricValue {
         MetricValue::Gauge(self.get())
+    }
+
+    fn set_value(&self, value: MetricValue) {
+        if let MetricValue::Gauge(v) = value {
+            self.set(v);
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
