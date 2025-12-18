@@ -697,8 +697,9 @@ combined_bar_count_total{x="y"} 10
     fn test_family_in_metrics_group() {
         use std::borrow::Cow;
 
-        use crate::{Family, LabelPair, LabelValue, NoLabels};
         use iroh_metrics_derive::MetricsGroup;
+
+        use crate::{Family, LabelPair, LabelValue, NoLabels};
 
         #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
         struct TransportLabels {
