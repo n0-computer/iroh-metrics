@@ -105,12 +105,12 @@ impl<'a> FamilyItem<'a> {
         prefixes: &[&str],
         labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
-        let labels: Vec<_> = labels
+        let label_refs: Vec<_> = labels
             .iter()
             .map(|(k, v)| (k.as_ref(), v.as_ref()))
             .collect();
         self.family
-            .encode_openmetrics_dyn(writer, self.name, self.help, prefixes, &labels)
+            .encode_openmetrics_dyn(writer, self.name, self.help, prefixes, &label_refs)
     }
 
     /// Encodes schema for binary encoding.
@@ -223,11 +223,28 @@ where
     /// Encodes to OpenMetrics text format.
     pub fn encode_openmetrics<'a>(
         &self,
-        writer: &mut impl Write,
+        writer: &mut (impl Write + ?Sized),
         name: &str,
         help: &str,
         prefixes: &[&str],
         registry_labels: impl Iterator<Item = (&'a str, &'a str)>,
+    ) -> fmt::Result
+    where
+        L: Ord,
+    {
+        let reg_labels: Vec<_> = registry_labels
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        self.encode_openmetrics_impl(writer, name, help, prefixes, &reg_labels)
+    }
+
+    fn encode_openmetrics_impl(
+        &self,
+        writer: &mut (impl Write + ?Sized),
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(String, String)],
     ) -> fmt::Result
     where
         L: Ord,
@@ -241,9 +258,6 @@ where
         entries.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         let metric_type = entries[0].1.r#type();
-        let reg_labels: Vec<_> = registry_labels
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
 
         writer.write_str("# HELP ")?;
         write_prefix_name(writer, prefixes, name)?;
@@ -253,10 +267,10 @@ where
         write_prefix_name(writer, prefixes, name)?;
         writeln!(writer, " {}", metric_type.as_str())?;
 
-        for (labels, metric) in entries {
-            let mut all_labels = reg_labels.clone();
+        for (label_set, metric) in entries {
+            let mut all_labels = registry_labels.to_vec();
             all_labels.extend(
-                labels
+                label_set
                     .encode_label_pairs()
                     .into_iter()
                     .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
@@ -453,39 +467,11 @@ where
         prefixes: &[&str],
         registry_labels: &[(&str, &str)],
     ) -> fmt::Result {
-        let guard = self.inner.read();
-        if guard.is_empty() {
-            return Ok(());
-        }
-
-        let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        let metric_type = entries[0].1.r#type();
         let reg_labels: Vec<_> = registry_labels
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-
-        writer.write_str("# HELP ")?;
-        write_prefix_name(writer, prefixes, name)?;
-        writeln!(writer, " {help}.")?;
-
-        writer.write_str("# TYPE ")?;
-        write_prefix_name(writer, prefixes, name)?;
-        writeln!(writer, " {}", metric_type.as_str())?;
-
-        for (labels, metric) in entries {
-            let mut all_labels = reg_labels.clone();
-            all_labels.extend(
-                labels
-                    .encode_label_pairs()
-                    .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
-            );
-            encode_metric_value(writer, name, prefixes, &all_labels, &metric.value())?;
-        }
-        Ok(())
+        self.encode_openmetrics_impl(writer, name, help, prefixes, &reg_labels)
     }
 
     fn encode_schema_dyn(
@@ -553,13 +539,14 @@ where
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let entries: Vec<(L, MetricValue)> = Vec::deserialize(deserializer)?;
         let family = Family::new();
-        let mut guard = family.inner.write();
-        for (labels, value) in entries {
-            let metric = Arc::new(M::default());
-            metric.set_value(value);
-            guard.insert(labels, metric);
+        {
+            let mut guard = family.inner.write();
+            for (labels, value) in entries {
+                let metric = Arc::new(M::default());
+                metric.set_value(value);
+                guard.insert(labels, metric);
+            }
         }
-        drop(guard);
         Ok(family)
     }
 }
