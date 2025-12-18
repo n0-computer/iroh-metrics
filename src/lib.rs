@@ -3,11 +3,13 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-pub use self::{base::*, metrics::*, registry::*};
+pub use self::{base::*, family::Family, labels::*, metrics::*, registry::*};
 
 mod base;
 pub mod encoding;
+mod family;
 pub mod iterable;
+mod labels;
 mod metrics;
 mod registry;
 #[cfg(feature = "service")]
@@ -15,6 +17,27 @@ pub mod service;
 #[cfg(feature = "static_core")]
 pub mod static_core;
 
+/// Derives [`EncodeLabelSet`] for a struct.
+///
+/// Each field becomes a label with the field name as the key.
+/// Use `#[label(name = "custom")]` to customize the label key.
+/// Use `#[label(skip)]` to exclude a field from the label set.
+///
+/// The struct must also derive `Clone`, `Hash`, `PartialEq`, and `Eq`.
+///
+/// # Example
+///
+/// ```
+/// use iroh_metrics::EncodeLabelSet;
+///
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
+/// struct HttpLabels {
+///     method: String,
+///     #[label(name = "status_code")]
+///     status: u16,
+/// }
+/// ```
+pub use iroh_metrics_derive::EncodeLabelSet;
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.

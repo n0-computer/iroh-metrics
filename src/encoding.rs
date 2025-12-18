@@ -16,63 +16,129 @@ pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
-/// Helper function to encode histogram data in OpenMetrics format.
-fn encode_histogram_data<'a>(
+/// Adds a schema item to the schema.
+pub(crate) fn encode_schema_item<K, V>(
+    schema: &mut Schema,
+    name: &str,
+    help: &str,
+    prefixes: &[impl AsRef<str>],
+    labels: &[(K, V)],
+    metric_type: MetricType,
+) where
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
+    schema.items.push(ItemSchema {
+        name: name.to_string(),
+        prefixes: prefixes.iter().map(|s| s.as_ref().to_string()).collect(),
+        labels: labels
+            .iter()
+            .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+            .collect(),
+        r#type: metric_type,
+    });
+    if let Some(h) = schema.help.as_mut() {
+        h.push(help.to_string());
+    }
+}
+
+/// Adds a metric value to the values collection.
+pub(crate) fn encode_value_item(values: &mut Values, value: MetricValue) {
+    values.items.push(value);
+}
+
+/// Encodes a metric value (without HELP/TYPE headers) in OpenMetrics format.
+pub(crate) fn encode_metric_value<K, V>(
     writer: &mut impl Write,
     name: &str,
     prefixes: &[impl AsRef<str>],
-    labels: &[(&'a str, &'a str)],
-    histogram_data: &HistogramData,
-) -> fmt::Result {
-    // Write buckets
-    for (upper_bound, count) in &histogram_data.buckets {
-        write_prefix_name(writer, prefixes, name)?;
-        writer.write_str("_bucket")?;
-        writer.write_char('{')?;
-        for (i, (key, value)) in labels.iter().enumerate() {
-            if i > 0 {
-                writer.write_char(',')?;
+    labels: &[(K, V)],
+    value: &MetricValue,
+) -> fmt::Result
+where
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
+    match value {
+        MetricValue::Counter(v) => {
+            write_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_total")?;
+            write_labels_slice(writer, labels, None)?;
+            writer.write_char(' ')?;
+            encode_u64(writer, *v)?;
+            writer.write_char('\n')?;
+        }
+        MetricValue::Gauge(v) => {
+            write_prefix_name(writer, prefixes, name)?;
+            write_labels_slice(writer, labels, None)?;
+            writer.write_char(' ')?;
+            encode_i64(writer, *v)?;
+            writer.write_char('\n')?;
+        }
+        MetricValue::Histogram {
+            buckets,
+            sum,
+            count,
+        } => {
+            for (le, cnt) in buckets {
+                write_prefix_name(writer, prefixes, name)?;
+                writer.write_str("_bucket")?;
+                write_labels_slice(writer, labels, Some(*le))?;
+                writer.write_char(' ')?;
+                encode_u64(writer, *cnt)?;
+                writer.write_char('\n')?;
             }
-            writer.write_str(key)?;
-            writer.write_str("=\"")?;
-            writer.write_str(value)?;
-            writer.write_char('"')?;
-        }
-        if !labels.is_empty() {
-            writer.write_char(',')?;
-        }
-        writer.write_str("le=\"")?;
-        if *upper_bound == f64::INFINITY {
-            writer.write_str("+Inf")?;
-        } else {
-            writer.write_str(ryu::Buffer::new().format(*upper_bound))?;
-        }
-        writer.write_str("\"} ")?;
-        encode_u64(writer, *count)?;
-        writer.write_str("\n")?;
-    }
 
-    // Write sum
-    write_prefix_name(writer, prefixes, name)?;
-    writer.write_str("_sum")?;
-    if !labels.is_empty() {
-        write_labels(writer, labels.iter().copied())?;
-    }
-    writer.write_char(' ')?;
-    encode_f64(writer, histogram_data.sum)?;
-    writer.write_str("\n")?;
+            write_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_sum")?;
+            write_labels_slice(writer, labels, None)?;
+            writer.write_char(' ')?;
+            encode_f64(writer, *sum)?;
+            writer.write_char('\n')?;
 
-    // Write count
-    write_prefix_name(writer, prefixes, name)?;
-    writer.write_str("_count")?;
-    if !labels.is_empty() {
-        write_labels(writer, labels.iter().copied())?;
+            write_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_count")?;
+            write_labels_slice(writer, labels, None)?;
+            writer.write_char(' ')?;
+            encode_u64(writer, *count)?;
+            writer.write_char('\n')?;
+        }
     }
-    writer.write_char(' ')?;
-    encode_u64(writer, histogram_data.count)?;
-    writer.write_str("\n")?;
-
     Ok(())
+}
+
+fn write_labels_slice<K, V>(w: &mut impl Write, labels: &[(K, V)], le: Option<f64>) -> fmt::Result
+where
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
+    if labels.is_empty() && le.is_none() {
+        return Ok(());
+    }
+
+    w.write_char('{')?;
+    let mut first = true;
+
+    for (k, v) in labels {
+        if !first {
+            w.write_char(',')?;
+        }
+        write!(w, "{}=\"{}\"", k.as_ref(), v.as_ref())?;
+        first = false;
+    }
+
+    if let Some(le) = le {
+        if !first {
+            w.write_char(',')?;
+        }
+        if le.is_infinite() {
+            w.write_str("le=\"+Inf\"")?;
+        } else {
+            write!(w, "le=\"{}\"", ryu::Buffer::new().format(le))?;
+        }
+    }
+
+    w.write_char('}')
 }
 
 /// Writes `# EOF\n` to `writer`.
@@ -471,36 +537,8 @@ pub(crate) trait EncodableMetric {
         writer.write_str(self.r#type().as_str())?;
         writer.write_str("\n")?;
 
-        match self.value() {
-            MetricValue::Histogram {
-                buckets,
-                sum,
-                count,
-            } => {
-                let labels_vec: Vec<_> = labels.collect();
-                let histogram_data = HistogramData {
-                    buckets,
-                    sum,
-                    count,
-                };
-                encode_histogram_data(writer, self.name(), prefixes, &labels_vec, &histogram_data)?;
-            }
-            MetricValue::Counter(value) => {
-                write_prefix_name(writer, prefixes, self.name())?;
-                writer.write_str("_total")?;
-                write_labels(writer, labels)?;
-                writer.write_char(' ')?;
-                encode_u64(writer, value)?;
-                writer.write_str("\n")?;
-            }
-            MetricValue::Gauge(value) => {
-                write_prefix_name(writer, prefixes, self.name())?;
-                write_labels(writer, labels)?;
-                writer.write_char(' ')?;
-                encode_i64(writer, value)?;
-                writer.write_str("\n")?;
-            }
-        }
+        let labels_vec: Vec<_> = labels.collect();
+        encode_metric_value(writer, self.name(), prefixes, &labels_vec, &self.value())?;
         Ok(())
     }
 }
@@ -512,22 +550,19 @@ impl MetricItem<'_> {
         prefixes: &[&str],
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) {
-        let item = crate::encoding::ItemSchema {
-            name: self.name().to_string(),
-            prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
-            labels: labels
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-            r#type: self.r#type(),
-        };
-        schema.items.push(item);
-        if let Some(help) = schema.help.as_mut() {
-            help.push(self.help().to_string());
-        }
+        let labels_vec: Vec<_> = labels.collect();
+        encode_schema_item(
+            schema,
+            self.name(),
+            self.help(),
+            prefixes,
+            &labels_vec,
+            self.r#type(),
+        );
     }
 
     fn encode_value(&self, values: &mut Values) {
-        values.items.push(self.value());
+        encode_value_item(values, self.value());
     }
 
     pub(crate) fn encode_openmetrics<'a>(
@@ -540,47 +575,22 @@ impl MetricItem<'_> {
     }
 }
 
-fn write_labels<'a>(
-    writer: &mut impl Write,
-    labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
-) -> fmt::Result {
-    let mut is_first = true;
-    let mut labels = labels.peekable();
-    while let Some((key, value)) = labels.next() {
-        let is_last = labels.peek().is_none();
-        if is_first {
-            writer.write_char('{')?;
-            is_first = false;
-        }
-        writer.write_str(key)?;
-        writer.write_str("=\"")?;
-        writer.write_str(value)?;
-        writer.write_str("\"")?;
-        if is_last {
-            writer.write_char('}')?;
-        } else {
-            writer.write_char(',')?;
-        }
-    }
-    Ok(())
-}
-
-fn encode_u64(writer: &mut impl Write, v: u64) -> fmt::Result {
+pub(crate) fn encode_u64(writer: &mut impl Write, v: u64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn encode_i64(writer: &mut impl Write, v: i64) -> fmt::Result {
+pub(crate) fn encode_i64(writer: &mut impl Write, v: i64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn encode_f64(writer: &mut impl Write, v: f64) -> fmt::Result {
+pub(crate) fn encode_f64(writer: &mut impl Write, v: f64) -> fmt::Result {
     writer.write_str(ryu::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn write_prefix_name(
+pub(crate) fn write_prefix_name(
     writer: &mut impl Write,
     prefixes: &[impl AsRef<str>],
     name: &str,
