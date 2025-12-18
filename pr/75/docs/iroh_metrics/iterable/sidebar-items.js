@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":["Iterable"],"struct":["FieldIter"],"trait":["IntoIterable","Iterable"]};
+window.SIDEBAR_ITEMS = {"derive":["Iterable"],"struct":["FamilyIter","FieldIter"],"trait":["IntoIterable","Iterable"]};

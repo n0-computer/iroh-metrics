@@ -173,7 +173,7 @@
 }
 
 <span class="doccomment">/// Empty label set for metrics that don't need labels.
-</span><span class="attr">#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
+</span><span class="attr">#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 </span><span class="kw">pub struct </span>NoLabels;
 
 <span class="kw">impl </span>EncodeLabelSet <span class="kw">for </span>NoLabels {

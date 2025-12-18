@@ -602,7 +602,21 @@
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
 //!
 //! [OpenMetrics text format]: https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md
 
@@ -614,7 +628,10 @@
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use crate</span>::{MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry};
+<span class="kw">use crate</span>::{
+    MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry,
+    iterable::IntoIterable,
+};
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>write_eof(writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write) -&gt; fmt::Result {
     writer.write_str(<span class="string">"# EOF\n"</span>)
@@ -652,15 +669,16 @@
 }
 
 <span class="doccomment">/// Encodes a metric value (without HELP/TYPE headers) in OpenMetrics format.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_metric_value&lt;K, V&gt;(
-    writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write,
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_metric_value&lt;W, K, V&gt;(
+    writer: <span class="kw-2">&amp;mut </span>W,
     name: <span class="kw-2">&amp;</span>str,
     prefixes: <span class="kw-2">&amp;</span>[<span class="kw">impl </span>AsRef&lt;str&gt;],
     labels: <span class="kw-2">&amp;</span>[(K, V)],
     value: <span class="kw-2">&amp;</span>MetricValue,
 ) -&gt; fmt::Result
 <span class="kw">where
-    </span>K: AsRef&lt;str&gt;,
+    </span>W: Write + <span class="question-mark">?</span>Sized,
+    K: AsRef&lt;str&gt;,
     V: AsRef&lt;str&gt;,
 {
     <span class="kw">match </span>value {
@@ -711,9 +729,10 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">fn </span>write_labels_slice&lt;K, V&gt;(w: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write, labels: <span class="kw-2">&amp;</span>[(K, V)], le: <span class="prelude-ty">Option</span>&lt;f64&gt;) -&gt; fmt::Result
+<span class="kw">fn </span>write_labels_slice&lt;W, K, V&gt;(w: <span class="kw-2">&amp;mut </span>W, labels: <span class="kw-2">&amp;</span>[(K, V)], le: <span class="prelude-ty">Option</span>&lt;f64&gt;) -&gt; fmt::Result
 <span class="kw">where
-    </span>K: AsRef&lt;str&gt;,
+    </span>W: Write + <span class="question-mark">?</span>Sized,
+    K: AsRef&lt;str&gt;,
     V: AsRef&lt;str&gt;,
 {
     <span class="kw">if </span>labels.is_empty() &amp;&amp; le.is_none() {
@@ -1080,11 +1099,17 @@
             <span class="kw">let </span>labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_schema(schema, prefixes, labels);
         }
+        <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
+            family.encode_schema(schema, prefixes, labels);
+        }
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_values(<span class="kw-2">&amp;</span><span class="self">self</span>, values: <span class="kw-2">&amp;mut </span>Values) {
         <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter() {
             metric.encode_value(values);
+        }
+        <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
+            family.encode_values(values);
         }
     }
 
@@ -1103,6 +1128,9 @@
         <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter() {
             <span class="kw">let </span>labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_openmetrics(writer, prefixes, labels)<span class="question-mark">?</span>;
+        }
+        <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
+            family.encode_openmetrics(writer, prefixes, labels)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1179,23 +1207,23 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_u64(writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write, v: u64) -&gt; fmt::Result {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_u64(writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized), v: u64) -&gt; fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_i64(writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write, v: i64) -&gt; fmt::Result {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_i64(writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized), v: i64) -&gt; fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_f64(writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write, v: f64) -&gt; fmt::Result {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_f64(writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized), v: f64) -&gt; fmt::Result {
     writer.write_str(ryu::Buffer::new().format(v))<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>write_prefix_name(
-    writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write,
+    writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized),
     prefixes: <span class="kw-2">&amp;</span>[<span class="kw">impl </span>AsRef&lt;str&gt;],
     name: <span class="kw-2">&amp;</span>str,
 ) -&gt; fmt::Result {
