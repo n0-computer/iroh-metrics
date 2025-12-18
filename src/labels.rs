@@ -72,7 +72,7 @@ pub trait EncodeLabelSet: Hash + Eq + Clone + Send + Sync + 'static {
 }
 
 /// Empty label set for metrics that don't need labels.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct NoLabels;
 
 impl EncodeLabelSet for NoLabels {

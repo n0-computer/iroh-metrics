@@ -3,7 +3,10 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-pub use self::{base::*, family::Family, labels::*, metrics::*, registry::*};
+pub use self::{
+    base::*, family::Family, family::FamilyEncoder, family::FamilyItem, labels::*, metrics::*,
+    registry::*,
+};
 
 mod base;
 pub mod encoding;
