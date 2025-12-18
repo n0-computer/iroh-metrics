@@ -5,22 +5,27 @@
 //! an alternative implementation should be considered due to lock contention.
 //! This was designed as such to avoid memory bloat in general use cases.
 
+#[cfg(feature = "metrics")]
+use std::collections::HashMap;
 use std::{
     borrow::Cow,
-    collections::HashMap,
     fmt::{self, Write},
     sync::Arc,
 };
 
+#[cfg(feature = "metrics")]
 use parking_lot::RwLock;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+#[cfg(feature = "metrics")]
+use crate::MetricValue;
+#[cfg(feature = "metrics")]
+use crate::encoding::{
+    encode_metric_value, encode_schema_item, encode_value_item, write_prefix_name,
+};
 use crate::{
-    Metric, MetricValue,
-    encoding::{
-        Schema, Values, encode_metric_value, encode_schema_item, encode_value_item,
-        write_prefix_name,
-    },
+    Metric,
+    encoding::{Schema, Values},
     labels::EncodeLabelSet,
 };
 
@@ -100,13 +105,21 @@ impl<'a> FamilyItem<'a> {
         prefixes: &[&str],
         labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
-        let labels: Vec<_> = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref())).collect();
+        let labels: Vec<_> = labels
+            .iter()
+            .map(|(k, v)| (k.as_ref(), v.as_ref()))
+            .collect();
         self.family
             .encode_openmetrics_dyn(writer, self.name, self.help, prefixes, &labels)
     }
 
     /// Encodes schema for binary encoding.
-    pub fn encode_schema(&self, schema: &mut Schema, prefixes: &[&str], labels: &[(Cow<'_, str>, Cow<'_, str>)]) {
+    pub fn encode_schema(
+        &self,
+        schema: &mut Schema,
+        prefixes: &[&str],
+        labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
         self.family
             .encode_schema_dyn(schema, self.name, self.help, prefixes, labels);
     }
@@ -117,9 +130,11 @@ impl<'a> FamilyItem<'a> {
     }
 }
 
+#[cfg(feature = "metrics")]
 type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
 
 /// A family of metrics indexed by labels.
+#[cfg(feature = "metrics")]
 pub struct Family<L, M>
 where
     L: EncodeLabelSet,
@@ -129,6 +144,7 @@ where
     constructor: Constructor<M>,
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> Family<L, M>
 where
     L: EncodeLabelSet,
@@ -143,6 +159,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> Default for Family<L, M>
 where
     L: EncodeLabelSet,
@@ -153,6 +170,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> Family<L, M>
 where
     L: EncodeLabelSet,
@@ -293,6 +311,121 @@ where
     }
 }
 
+/// A family of metrics indexed by labels (no-op when metrics disabled).
+#[cfg(not(feature = "metrics"))]
+pub struct Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    default_metric: Arc<M>,
+    _labels: std::marker::PhantomData<L>,
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    /// Creates a new family using `M::default()` for new metrics.
+    pub fn new() -> Self {
+        Self {
+            default_metric: Arc::new(M::default()),
+            _labels: std::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Default for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    /// Creates a new family with a custom constructor (useful for Histogram buckets).
+    pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
+        Self {
+            default_metric: Arc::new(constructor()),
+            _labels: std::marker::PhantomData,
+        }
+    }
+
+    /// Gets or creates a metric for the given labels (returns default metric).
+    pub fn get_or_create(&self, _labels: &L) -> Arc<M> {
+        Arc::clone(&self.default_metric)
+    }
+
+    /// Removes the metric for the given labels (no-op).
+    pub fn remove(&self, _labels: &L) -> Option<Arc<M>> {
+        None
+    }
+
+    /// Removes all metrics (no-op).
+    pub fn clear(&self) {}
+
+    /// Returns the number of label combinations tracked.
+    pub fn len(&self) -> usize {
+        0
+    }
+
+    /// Returns true if empty.
+    pub fn is_empty(&self) -> bool {
+        true
+    }
+
+    /// Encodes to OpenMetrics text format (no-op).
+    pub fn encode_openmetrics<'a>(
+        &self,
+        _writer: &mut impl Write,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: impl Iterator<Item = (&'a str, &'a str)>,
+    ) -> fmt::Result
+    where
+        L: Ord,
+    {
+        Ok(())
+    }
+
+    /// Encodes schema for binary encoding (no-op).
+    pub fn encode_schema(
+        &self,
+        _schema: &mut Schema,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) where
+        L: Ord,
+    {
+    }
+
+    /// Encodes values for binary encoding (no-op).
+    pub fn encode_values(&self, _values: &mut Values)
+    where
+        L: Ord,
+    {
+    }
+}
+
+// ============================================================================
+// Trait impls: metrics ENABLED
+// ============================================================================
+
+#[cfg(feature = "metrics")]
 impl<L, M> Clone for Family<L, M>
 where
     L: EncodeLabelSet,
@@ -306,6 +439,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> FamilyEncoder for Family<L, M>
 where
     L: EncodeLabelSet + Ord,
@@ -374,6 +508,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> fmt::Debug for Family<L, M>
 where
     L: EncodeLabelSet + fmt::Debug,
@@ -388,6 +523,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<L, M> Serialize for Family<L, M>
 where
     L: EncodeLabelSet + Serialize + Ord,
@@ -408,6 +544,7 @@ where
     }
 }
 
+#[cfg(feature = "metrics")]
 impl<'de, L, M> Deserialize<'de> for Family<L, M>
 where
     L: EncodeLabelSet + Deserialize<'de>,
@@ -424,6 +561,89 @@ where
         }
         drop(guard);
         Ok(family)
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Clone for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn clone(&self) -> Self {
+        Self {
+            default_metric: Arc::clone(&self.default_metric),
+            _labels: std::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> FamilyEncoder for Family<L, M>
+where
+    L: EncodeLabelSet + Ord,
+    M: Metric + 'static,
+{
+    fn encode_openmetrics_dyn(
+        &self,
+        _writer: &mut dyn Write,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: &[(&str, &str)],
+    ) -> fmt::Result {
+        Ok(())
+    }
+
+    fn encode_schema_dyn(
+        &self,
+        _schema: &mut Schema,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
+    }
+
+    fn encode_values_dyn(&self, _values: &mut Values) {}
+
+    fn is_empty_dyn(&self) -> bool {
+        true
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> fmt::Debug for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Family").field("disabled", &true).finish()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Serialize for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        serializer.serialize_seq(Some(0))?.end()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<'de, L, M> Deserialize<'de> for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let _: serde::de::IgnoredAny = serde::de::Deserialize::deserialize(deserializer)?;
+        Ok(Family::new())
     }
 }
 
