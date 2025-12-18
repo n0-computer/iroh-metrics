@@ -4,7 +4,10 @@
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
 pub use self::{
-    base::*, family::Family, family::FamilyEncoder, family::FamilyItem, labels::*, metrics::*,
+    base::*,
+    family::{Family, FamilyEncoder, FamilyItem},
+    labels::*,
+    metrics::*,
     registry::*,
 };
 
