@@ -2,7 +2,7 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.38.0](https://github.com/n0-computer/iroh-metrics/compare/v0.37.0..0.38.0) - 2025-11-27
+## [0.38.0](https://github.com/n0-computer/iroh-metrics/compare/v0.37.0..v0.38.0) - 2025-11-27
 
 ### ⛰️  Features
 
@@ -11,6 +11,10 @@ All notable changes to iroh will be documented in this file.
 ### 🚜 Refactor
 
 - *(histogram)* [**breaking**] Make histograms encodeable and more integrated ([#59](https://github.com/n0-computer/iroh-metrics/issues/59)) - ([b8f1876](https://github.com/n0-computer/iroh-metrics/commit/b8f18760e5560f2329ee551da6fa38fabc1cc92d))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release - ([987424e](https://github.com/n0-computer/iroh-metrics/commit/987424e75ddb78781c6b1031a6be2aa18f1a698c))
 
 ## [0.37.0](https://github.com/n0-computer/iroh-metrics/compare/v0.36.2..v0.37.0) - 2025-11-03
 
