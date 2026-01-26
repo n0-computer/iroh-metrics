@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "0.38.1"
+version = "0.38.2"
 dependencies = [
  "erased_set",
  "http-body-util",
@@ -537,7 +537,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics-derive"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "heck",
  "proc-macro2",
