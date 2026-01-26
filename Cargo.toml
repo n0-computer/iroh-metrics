@@ -44,8 +44,7 @@ erased_set = { version = "0.8", optional = true }
 http-body-util = { version = "0.1.0", optional = true }
 hyper = { version = "1", features = ["server", "http1"], optional = true }
 hyper-util = { version = "0.1.17", features = ["tokio"], optional = true }
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"], optional = true }
-rustls = { version = "0.23", default-features = false, features = ["std", "ring"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
 postcard = { version = "1.1.1", features = ["use-std"] }
 
@@ -69,7 +68,6 @@ service = [
     "dep:hyper-util",
     "dep:reqwest",
     "dep:tokio",
-    "dep:rustls",
 ]
 # Enables a global, static metrics collector
 static_core = ["metrics", "dep:erased_set"]
