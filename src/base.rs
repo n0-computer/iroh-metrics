@@ -692,4 +692,75 @@ combined_bar_count_total{x="y"} 10
             "Decoder should produce identical OpenMetrics output to registry for histograms"
         );
     }
+
+    #[test]
+    fn test_family_in_metrics_group() {
+        use std::borrow::Cow;
+
+        use iroh_metrics_derive::MetricsGroup;
+
+        use crate::{Family, LabelPair, LabelValue, NoLabels};
+
+        #[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
+        struct TransportLabels {
+            transport: String,
+        }
+
+        impl crate::EncodeLabelSet for TransportLabels {
+            fn encode_label_pairs(&self) -> Vec<LabelPair<'_>> {
+                vec![("transport", LabelValue::Str(Cow::Borrowed(&self.transport)))]
+            }
+        }
+
+        #[derive(Debug, MetricsGroup)]
+        #[metrics(default, name = "magicsock")]
+        struct Metrics {
+            /// Total bytes sent
+            total_bytes: Counter,
+            /// Bytes by transport
+            bytes_by_transport: Family<TransportLabels, Counter>,
+            /// Latency histogram
+            #[default(Family::with_constructor(|| crate::Histogram::new(vec![0.1, 1.0, 10.0])))]
+            latency: Family<NoLabels, crate::Histogram>,
+        }
+
+        let metrics = Metrics::default();
+
+        // Regular metric
+        metrics.total_bytes.inc_by(100);
+
+        // Family metrics
+        metrics
+            .bytes_by_transport
+            .get_or_create(&TransportLabels {
+                transport: "ipv4".into(),
+            })
+            .inc_by(50);
+        metrics
+            .bytes_by_transport
+            .get_or_create(&TransportLabels {
+                transport: "relay".into(),
+            })
+            .inc_by(30);
+        metrics.latency.get_or_create(&NoLabels).observe(0.5);
+
+        // Check regular metrics iteration
+        let regular_count = metrics.iter().count();
+        assert_eq!(regular_count, 1, "Should have 1 regular metric");
+
+        // Check family iteration
+        let family_count = IntoIterable::family_iter(&metrics).count();
+        assert_eq!(family_count, 2, "Should have 2 family metrics");
+
+        // Register and encode
+        let mut registry = Registry::default();
+        registry.register(Arc::new(metrics));
+
+        let output = registry.encode_openmetrics_to_string().unwrap();
+        assert!(output.contains("magicsock_total_bytes_total 100"));
+        assert!(output.contains("magicsock_bytes_by_transport"));
+        assert!(output.contains(r#"transport="ipv4""#));
+        assert!(output.contains(r#"transport="relay""#));
+        assert!(output.contains("magicsock_latency"));
+    }
 }

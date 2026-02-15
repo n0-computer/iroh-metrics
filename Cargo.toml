@@ -32,6 +32,7 @@ unused-async = "warn"
 [dependencies]
 iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.4.1" }
 itoa = "1"
+parking_lot = "0.12"
 ryu = "1"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 n0-error = "0.1.3"
