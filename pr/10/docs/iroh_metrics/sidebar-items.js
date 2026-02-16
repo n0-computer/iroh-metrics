@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Error"],"fn":["parse_prometheus_metrics"],"macro":["dec","dec_by","inc","inc_by","set"],"mod":["core","metrics"],"struct":["PushMetricsConfig"]};
