@@ -7,9 +7,9 @@
 //! and the structs don't collect actual data.
 
 use std::any::Any;
-#[cfg(feature = "metrics")]
-use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
+#[cfg(feature = "metrics")]
+use portable_atomic::{AtomicI64, AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 
 /// The types of metrics supported by this crate.
