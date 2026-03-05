@@ -4,11 +4,10 @@ use std::{
     borrow::Cow,
     fmt::{self, Write},
     ops::Deref,
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::{Arc, RwLock},
 };
+
+use portable_atomic::{AtomicU64, Ordering};
 
 use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::write_eof};
 
