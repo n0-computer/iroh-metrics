@@ -449,9 +449,9 @@
 //! and the structs don't collect actual data.
 
 </span><span class="kw">use </span>std::any::Any;
-<span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
-</span><span class="kw">use </span>std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
+<span class="attr">#[cfg(feature = <span class="string">"metrics"</span>)]
+</span><span class="kw">use </span>portable_atomic::{AtomicI64, AtomicU64, Ordering};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// The types of metrics supported by this crate.
