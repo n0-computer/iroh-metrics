@@ -9,7 +9,7 @@ use std::{
 
 use portable_atomic::{AtomicU64, Ordering};
 
-use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::write_eof};
+use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::encode_eof};
 
 /// A registry for [`MetricsGroup`].
 #[derive(Debug, Default)]
@@ -156,7 +156,7 @@ pub trait MetricsSource: Send + 'static {
 impl MetricsSource for Registry {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), Error> {
         self.encode_openmetrics_to_writer(writer)?;
-        write_eof(writer)?;
+        encode_eof(writer)?;
         Ok(())
     }
 }
