@@ -15,66 +15,43 @@ use crate::{
     iterable::IntoIterable,
 };
 
-pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
+pub(crate) fn encode_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
-/// Adds a schema item to the schema.
-pub(crate) fn encode_schema_item<K, V>(
-    schema: &mut Schema,
-    name: &str,
-    help: &str,
-    prefixes: &[impl AsRef<str>],
-    labels: &[(K, V)],
-    metric_type: MetricType,
-) where
-    K: AsRef<str>,
-    V: AsRef<str>,
-{
-    schema.items.push(ItemSchema {
-        name: name.to_string(),
-        prefixes: prefixes.iter().map(|s| s.as_ref().to_string()).collect(),
-        labels: labels
-            .iter()
-            .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
-            .collect(),
-        r#type: metric_type,
-    });
-    if let Some(h) = schema.help.as_mut() {
-        h.push(help.to_string());
-    }
-}
-
-/// Adds a metric value to the values collection.
-pub(crate) fn encode_value_item(values: &mut Values, value: MetricValue) {
-    values.items.push(value);
-}
-
 /// Encodes a metric value (without HELP/TYPE headers) in OpenMetrics format.
-pub(crate) fn encode_metric_value<W, K, V>(
+///
+/// The following suffixes are appended to the metric name per the OpenMetrics spec:
+/// - Counter: `_total` (e.g. `my_counter_total`)
+/// - Gauge: no suffix
+/// - Histogram: `_bucket` (with `le` label), `_sum`, `_count`
+pub(crate) fn encode_metric_value<W, K1, V1, K2, V2>(
     writer: &mut W,
     name: &str,
     prefixes: &[impl AsRef<str>],
-    labels: &[(K, V)],
+    labels: &[(K1, V1)],
+    extra_labels: &[(K2, V2)],
     value: &MetricValue,
 ) -> fmt::Result
 where
     W: Write + ?Sized,
-    K: AsRef<str>,
-    V: AsRef<str>,
+    K1: AsRef<str>,
+    V1: AsRef<str>,
+    K2: AsRef<str>,
+    V2: AsRef<str>,
 {
     match value {
         MetricValue::Counter(v) => {
-            write_prefix_name(writer, prefixes, name)?;
+            encode_prefix_name(writer, prefixes, name)?;
             writer.write_str("_total")?;
-            write_labels_slice(writer, labels, None)?;
+            encode_labels(writer, labels, extra_labels, None)?;
             writer.write_char(' ')?;
             encode_u64(writer, *v)?;
             writer.write_char('\n')?;
         }
         MetricValue::Gauge(v) => {
-            write_prefix_name(writer, prefixes, name)?;
-            write_labels_slice(writer, labels, None)?;
+            encode_prefix_name(writer, prefixes, name)?;
+            encode_labels(writer, labels, extra_labels, None)?;
             writer.write_char(' ')?;
             encode_i64(writer, *v)?;
             writer.write_char('\n')?;
@@ -85,24 +62,24 @@ where
             count,
         } => {
             for (le, cnt) in buckets {
-                write_prefix_name(writer, prefixes, name)?;
+                encode_prefix_name(writer, prefixes, name)?;
                 writer.write_str("_bucket")?;
-                write_labels_slice(writer, labels, Some(*le))?;
+                encode_labels(writer, labels, extra_labels, Some(*le))?;
                 writer.write_char(' ')?;
                 encode_u64(writer, *cnt)?;
                 writer.write_char('\n')?;
             }
 
-            write_prefix_name(writer, prefixes, name)?;
+            encode_prefix_name(writer, prefixes, name)?;
             writer.write_str("_sum")?;
-            write_labels_slice(writer, labels, None)?;
+            encode_labels(writer, labels, extra_labels, None)?;
             writer.write_char(' ')?;
             encode_f64(writer, *sum)?;
             writer.write_char('\n')?;
 
-            write_prefix_name(writer, prefixes, name)?;
+            encode_prefix_name(writer, prefixes, name)?;
             writer.write_str("_count")?;
-            write_labels_slice(writer, labels, None)?;
+            encode_labels(writer, labels, extra_labels, None)?;
             writer.write_char(' ')?;
             encode_u64(writer, *count)?;
             writer.write_char('\n')?;
@@ -111,13 +88,20 @@ where
     Ok(())
 }
 
-fn write_labels_slice<W, K, V>(w: &mut W, labels: &[(K, V)], le: Option<f64>) -> fmt::Result
+fn encode_labels<W, K1, V1, K2, V2>(
+    w: &mut W,
+    labels: &[(K1, V1)],
+    extra_labels: &[(K2, V2)],
+    le: Option<f64>,
+) -> fmt::Result
 where
     W: Write + ?Sized,
-    K: AsRef<str>,
-    V: AsRef<str>,
+    K1: AsRef<str>,
+    V1: AsRef<str>,
+    K2: AsRef<str>,
+    V2: AsRef<str>,
 {
-    if labels.is_empty() && le.is_none() {
+    if labels.is_empty() && extra_labels.is_empty() && le.is_none() {
         return Ok(());
     }
 
@@ -125,6 +109,14 @@ where
     let mut first = true;
 
     for (k, v) in labels {
+        if !first {
+            w.write_char(',')?;
+        }
+        write!(w, "{}=\"{}\"", k.as_ref(), v.as_ref())?;
+        first = false;
+    }
+
+    for (k, v) in extra_labels {
         if !first {
             w.write_char(',')?;
         }
@@ -150,7 +142,7 @@ where
 ///
 /// This is the expected last characters of an OpenMetrics string.
 pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
-    write_eof(writer)
+    encode_eof(writer)
 }
 
 /// Schema information for a single metric item.
@@ -170,6 +162,28 @@ pub struct ItemSchema {
 }
 
 impl ItemSchema {
+    /// Creates a new schema item from the given metadata.
+    pub fn new<K, V>(
+        name: &str,
+        prefixes: &[impl AsRef<str>],
+        labels: &[(K, V)],
+        metric_type: MetricType,
+    ) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        Self {
+            name: name.to_string(),
+            prefixes: prefixes.iter().map(|s| s.as_ref().to_string()).collect(),
+            labels: labels
+                .iter()
+                .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+                .collect(),
+            r#type: metric_type,
+        }
+    }
+
     /// Returns the name prefixed with all prefixes.
     pub fn prefixed_name(&self) -> String {
         let mut out = String::new();
@@ -194,6 +208,14 @@ pub struct Schema {
 }
 
 impl Schema {
+    /// Pushes a schema item and its help text.
+    pub fn push(&mut self, item: ItemSchema, help: &str) {
+        self.items.push(item);
+        if let Some(h) = self.help.as_mut() {
+            h.push(help.to_string());
+        }
+    }
+
     /// Creates a new [`Schema`] that does not track help text.
     pub fn new_without_help() -> Self {
         Self {
@@ -376,7 +398,7 @@ impl MetricsSource for Decoder {
         for item in self.iter() {
             item.encode_openmetrics(writer)?;
         }
-        write_eof(writer)?;
+        encode_eof(writer)?;
         Ok(())
     }
 }
@@ -540,19 +562,27 @@ pub(crate) trait EncodableMetric {
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) -> fmt::Result {
         writer.write_str("# HELP ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
+        encode_prefix_name(writer, prefixes, self.name())?;
         writer.write_str(" ")?;
         writer.write_str(self.help())?;
         writer.write_str(".\n")?;
 
         writer.write_str("# TYPE ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
+        encode_prefix_name(writer, prefixes, self.name())?;
         writer.write_str(" ")?;
         writer.write_str(self.r#type().as_str())?;
         writer.write_str("\n")?;
 
         let labels_vec: Vec<_> = labels.collect();
-        encode_metric_value(writer, self.name(), prefixes, &labels_vec, &self.value())?;
+        let empty: &[(&str, &str)] = &[];
+        encode_metric_value(
+            writer,
+            self.name(),
+            prefixes,
+            &labels_vec,
+            empty,
+            &self.value(),
+        )?;
         Ok(())
     }
 }
@@ -565,18 +595,14 @@ impl MetricItem<'_> {
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) {
         let labels_vec: Vec<_> = labels.collect();
-        encode_schema_item(
-            schema,
-            self.name(),
+        schema.push(
+            ItemSchema::new(self.name(), prefixes, &labels_vec, self.r#type()),
             self.help(),
-            prefixes,
-            &labels_vec,
-            self.r#type(),
         );
     }
 
     fn encode_value(&self, values: &mut Values) {
-        encode_value_item(values, self.value());
+        values.items.push(self.value());
     }
 
     pub(crate) fn encode_openmetrics<'a>(
@@ -604,7 +630,7 @@ pub(crate) fn encode_f64(writer: &mut (impl Write + ?Sized), v: f64) -> fmt::Res
     Ok(())
 }
 
-pub(crate) fn write_prefix_name(
+pub(crate) fn encode_prefix_name(
     writer: &mut (impl Write + ?Sized),
     prefixes: &[impl AsRef<str>],
     name: &str,

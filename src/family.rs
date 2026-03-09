@@ -20,21 +20,21 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "metrics")]
 use crate::MetricValue;
 #[cfg(feature = "metrics")]
-use crate::encoding::{
-    encode_metric_value, encode_schema_item, encode_value_item, write_prefix_name,
-};
+use crate::encoding::{ItemSchema, encode_metric_value, encode_prefix_name};
 use crate::{
     Metric,
     encoding::{Schema, Values},
     labels::EncodeLabelSet,
 };
 
-/// Trait for type-erased Family encoding.
+/// Encoding interface for [`Family`] values.
 ///
-/// Implemented by `Family<L, M>` to enable dynamic dispatch in derive macros.
+/// A metrics group may contain multiple families with different label and
+/// metric types. This trait provides a common interface so all families in a
+/// group can be encoded the same way, regardless of their concrete types.
 pub trait FamilyEncoder: Send + Sync + 'static {
     /// Encodes to OpenMetrics text format.
-    fn encode_openmetrics_dyn(
+    fn encode_openmetrics_fam(
         &self,
         writer: &mut dyn Write,
         name: &str,
@@ -44,7 +44,7 @@ pub trait FamilyEncoder: Send + Sync + 'static {
     ) -> fmt::Result;
 
     /// Encodes schema for binary encoding.
-    fn encode_schema_dyn(
+    fn encode_schema_fam(
         &self,
         schema: &mut Schema,
         name: &str,
@@ -54,10 +54,10 @@ pub trait FamilyEncoder: Send + Sync + 'static {
     );
 
     /// Encodes values for binary encoding.
-    fn encode_values_dyn(&self, values: &mut Values);
+    fn encode_values_fam(&self, values: &mut Values);
 
     /// Returns true if the family has no entries.
-    fn is_empty_dyn(&self) -> bool;
+    fn is_empty_fam(&self) -> bool;
 }
 
 /// A family metric item for iteration.
@@ -95,7 +95,7 @@ impl<'a> FamilyItem<'a> {
 
     /// Returns true if the family has no entries.
     pub fn is_empty(&self) -> bool {
-        self.family.is_empty_dyn()
+        self.family.is_empty_fam()
     }
 
     /// Encodes to OpenMetrics text format.
@@ -110,7 +110,7 @@ impl<'a> FamilyItem<'a> {
             .map(|(k, v)| (k.as_ref(), v.as_ref()))
             .collect();
         self.family
-            .encode_openmetrics_dyn(writer, self.name, self.help, prefixes, &label_refs)
+            .encode_openmetrics_fam(writer, self.name, self.help, prefixes, &label_refs)
     }
 
     /// Encodes schema for binary encoding.
@@ -121,12 +121,12 @@ impl<'a> FamilyItem<'a> {
         labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
         self.family
-            .encode_schema_dyn(schema, self.name, self.help, prefixes, labels);
+            .encode_schema_fam(schema, self.name, self.help, prefixes, labels);
     }
 
     /// Encodes values for binary encoding.
     pub fn encode_values(&self, values: &mut Values) {
-        self.family.encode_values_dyn(values);
+        self.family.encode_values_fam(values);
     }
 }
 
@@ -134,6 +134,9 @@ impl<'a> FamilyItem<'a> {
 type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
 
 /// A family of metrics indexed by labels.
+///
+/// Thread-safe: multiple threads can look up or create metrics concurrently.
+/// Each metric is reference-counted so it can be used independently after lookup.
 #[cfg(feature = "metrics")]
 pub struct Family<L, M>
 where
@@ -260,22 +263,27 @@ where
         let metric_type = entries[0].1.r#type();
 
         writer.write_str("# HELP ")?;
-        write_prefix_name(writer, prefixes, name)?;
+        encode_prefix_name(writer, prefixes, name)?;
         writeln!(writer, " {help}.")?;
 
         writer.write_str("# TYPE ")?;
-        write_prefix_name(writer, prefixes, name)?;
+        encode_prefix_name(writer, prefixes, name)?;
         writeln!(writer, " {}", metric_type.as_str())?;
 
         for (label_set, metric) in entries {
-            let mut all_labels = registry_labels.to_vec();
-            all_labels.extend(
-                label_set
-                    .encode_label_pairs()
-                    .into_iter()
-                    .map(|(k, v)| (k.to_string(), v.as_str().into_owned())),
-            );
-            encode_metric_value(writer, name, prefixes, &all_labels, &metric.value())?;
+            let family_labels: Vec<_> = label_set
+                .encode_label_pairs()
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.as_str().into_owned()))
+                .collect();
+            encode_metric_value(
+                writer,
+                name,
+                prefixes,
+                registry_labels,
+                &family_labels,
+                &metric.value(),
+            )?;
         }
         Ok(())
     }
@@ -306,7 +314,10 @@ where
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.as_str().to_string())),
             );
-            encode_schema_item(schema, name, help, prefixes, &all_labels, metric.r#type());
+            schema.push(
+                ItemSchema::new(name, prefixes, &all_labels, metric.r#type()),
+                help,
+            );
         }
     }
 
@@ -320,7 +331,7 @@ where
         entries.sort_by(|(a, _), (b, _)| a.cmp(b));
 
         for (_, metric) in entries {
-            encode_value_item(values, metric.value());
+            values.items.push(metric.value());
         }
     }
 }
@@ -332,6 +343,7 @@ where
     L: EncodeLabelSet,
     M: Metric,
 {
+    /// Shared no-op / placeholder metric returned by all `get_or_create` calls when metrics are disabled.
     default_metric: Arc<M>,
     _labels: std::marker::PhantomData<L>,
 }
@@ -459,7 +471,7 @@ where
     L: EncodeLabelSet + Ord,
     M: Metric + 'static,
 {
-    fn encode_openmetrics_dyn(
+    fn encode_openmetrics_fam(
         &self,
         writer: &mut dyn Write,
         name: &str,
@@ -474,7 +486,7 @@ where
         self.encode_openmetrics_impl(writer, name, help, prefixes, &reg_labels)
     }
 
-    fn encode_schema_dyn(
+    fn encode_schema_fam(
         &self,
         schema: &mut Schema,
         name: &str,
@@ -485,11 +497,11 @@ where
         self.encode_schema(schema, name, help, prefixes, registry_labels);
     }
 
-    fn encode_values_dyn(&self, values: &mut Values) {
+    fn encode_values_fam(&self, values: &mut Values) {
         self.encode_values(values);
     }
 
-    fn is_empty_dyn(&self) -> bool {
+    fn is_empty_fam(&self) -> bool {
         self.is_empty()
     }
 }
@@ -571,7 +583,7 @@ where
     L: EncodeLabelSet + Ord,
     M: Metric + 'static,
 {
-    fn encode_openmetrics_dyn(
+    fn encode_openmetrics_fam(
         &self,
         _writer: &mut dyn Write,
         _name: &str,
@@ -582,7 +594,7 @@ where
         Ok(())
     }
 
-    fn encode_schema_dyn(
+    fn encode_schema_fam(
         &self,
         _schema: &mut Schema,
         _name: &str,
@@ -592,9 +604,9 @@ where
     ) {
     }
 
-    fn encode_values_dyn(&self, _values: &mut Values) {}
+    fn encode_values_fam(&self, _values: &mut Values) {}
 
-    fn is_empty_dyn(&self) -> bool {
+    fn is_empty_fam(&self) -> bool {
         true
     }
 }
