@@ -2,11 +2,29 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.38.2](https://github.com/n0-computer/iroh-metrics/compare/v0.38.1..0.38.2) - 2026-01-26
+## [0.38.3](https://github.com/n0-computer/iroh-metrics/compare/v0.38.2..0.38.3) - 2026-03-10
+
+### 🐛 Bug Fixes
+
+- Configure git identity in cleanup workflow ([#89](https://github.com/n0-computer/iroh-metrics/issues/89)) - ([17db341](https://github.com/n0-computer/iroh-metrics/commit/17db341b0f5ace48f7f13b10b4d31727de4a6d5a))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update deps ([#98](https://github.com/n0-computer/iroh-metrics/issues/98)) - ([c454cb2](https://github.com/n0-computer/iroh-metrics/commit/c454cb2a04f1889b6872f5956ea7adfeacd04484))
+
+### Deps
+
+- Use portable atomics for u64 etc. ([#94](https://github.com/n0-computer/iroh-metrics/issues/94)) - ([20fbabe](https://github.com/n0-computer/iroh-metrics/commit/20fbabeec6635906f8e8e4b8d0a1dac5bbb8b03f))
+
+## [0.38.2](https://github.com/n0-computer/iroh-metrics/compare/v0.38.1..v0.38.2) - 2026-01-26
 
 ### 🐛 Bug Fixes
 
 - Minimal versions selection ([#87](https://github.com/n0-computer/iroh-metrics/issues/87)) - ([23c3175](https://github.com/n0-computer/iroh-metrics/commit/23c317540d0d9a9bf73c52b2caf62a94902f6ae6))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release - ([877555d](https://github.com/n0-computer/iroh-metrics/commit/877555d241bca924d0545d93a90861a061a04e5c))
 
 ## [0.38.1](https://github.com/n0-computer/iroh-metrics/compare/v0.38.0..v0.38.1) - 2026-01-09
 
