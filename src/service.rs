@@ -2,6 +2,7 @@
 
 use std::{
     net::SocketAddr,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -76,7 +77,23 @@ pub async fn start_metrics_exporter(
         username,
         password,
     } = cfg;
-    let push_client = reqwest::Client::new();
+
+    // All of the `.expect`s were previously internal to the `reqwest::Client::new` call.
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let push_client = reqwest::Client::builder()
+        .use_preconfigured_tls(
+            rustls::ClientConfig::builder_with_provider(provider.clone())
+                .with_safe_default_protocol_versions()
+                .expect("no TLS 1.3 support in ring")
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(
+                    rustls_platform_verifier::Verifier::new(provider)
+                        .expect("rustls platform verifier incompatible with ring"),
+                )),
+        )
+        .build()
+        .expect("reqwest incompatible with ring");
+
     let prom_gateway_uri =
         format!("{endpoint}/metrics/job/{service_name}/instance/{instance_name}");
     loop {
