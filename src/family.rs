@@ -1,12 +1,13 @@
 //! Metric families with labels.
 //!
-//! A [`Family`] is a collection of metrics indexed by label sets. Targeted for
-//! low cardinality (tens to ~100 label combinations). For high cardinality,
-//! an alternative implementation should be considered due to lock contention.
-//! This was designed as such to avoid memory bloat in general use cases.
+//! A [`Family`] is a collection of metrics indexed by label sets. Labels
+//! should be low cardinality: each unique combination becomes a separate
+//! timeseries on the backend, and the internal map grows without bound.
 
 #[cfg(feature = "metrics")]
 use std::collections::HashMap;
+#[cfg(feature = "metrics")]
+use std::sync::OnceLock;
 use std::{
     borrow::Cow,
     fmt::{self, Write},
@@ -15,36 +16,39 @@ use std::{
 
 #[cfg(feature = "metrics")]
 use parking_lot::RwLock;
+use portable_atomic::AtomicU64;
+#[cfg(feature = "metrics")]
+use portable_atomic::Ordering;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[cfg(feature = "metrics")]
 use crate::MetricValue;
 #[cfg(feature = "metrics")]
-use crate::encoding::{ItemSchema, encode_metric_value, encode_prefix_name};
+use crate::encoding::{ItemSchema, encode_help_text, encode_metric_value, encode_prefix_name};
 use crate::{
     Metric,
     encoding::{Schema, Values},
     labels::EncodeLabelSet,
 };
 
-/// Encoding interface for [`Family`] values.
+/// Type-erased encoding interface for a [`Family`].
 ///
-/// A metrics group may contain multiple families with different label and
-/// metric types. This trait provides a common interface so all families in a
-/// group can be encoded the same way, regardless of their concrete types.
+/// `Family<L, M>` is generic in both label and metric type. This trait
+/// collapses those generics so a metrics group containing multiple families
+/// can iterate them as `&dyn FamilyEncoder`.
 pub trait FamilyEncoder: Send + Sync + 'static {
     /// Encodes to OpenMetrics text format.
-    fn encode_openmetrics_fam(
+    fn encode_openmetrics(
         &self,
         writer: &mut dyn Write,
         name: &str,
         help: &str,
         prefixes: &[&str],
-        registry_labels: &[(&str, &str)],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result;
 
     /// Encodes schema for binary encoding.
-    fn encode_schema_fam(
+    fn encode_schema(
         &self,
         schema: &mut Schema,
         name: &str,
@@ -53,11 +57,18 @@ pub trait FamilyEncoder: Send + Sync + 'static {
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     );
 
-    /// Encodes values for binary encoding.
-    fn encode_values_fam(&self, values: &mut Values);
+    /// Encodes values for binary encoding. Order must match `encode_schema`.
+    fn encode_values(&self, values: &mut Values);
 
     /// Returns true if the family has no entries.
-    fn is_empty_fam(&self) -> bool;
+    fn is_empty(&self) -> bool;
+
+    /// Wires this family up to a registry's schema-version counter.
+    ///
+    /// Called by the registry when the parent metrics group is registered, so
+    /// that adding a new label combination (a new entry to the family) bumps
+    /// the version and re-publishes the schema on the next binary export.
+    fn attach_schema_version(&self, version: Arc<AtomicU64>);
 }
 
 /// A family metric item for iteration.
@@ -95,7 +106,7 @@ impl<'a> FamilyItem<'a> {
 
     /// Returns true if the family has no entries.
     pub fn is_empty(&self) -> bool {
-        self.family.is_empty_fam()
+        self.family.is_empty()
     }
 
     /// Encodes to OpenMetrics text format.
@@ -103,14 +114,10 @@ impl<'a> FamilyItem<'a> {
         &self,
         writer: &mut dyn fmt::Write,
         prefixes: &[&str],
-        labels: &[(Cow<'_, str>, Cow<'_, str>)],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
-        let label_refs: Vec<_> = labels
-            .iter()
-            .map(|(k, v)| (k.as_ref(), v.as_ref()))
-            .collect();
         self.family
-            .encode_openmetrics_fam(writer, self.name, self.help, prefixes, &label_refs)
+            .encode_openmetrics(writer, self.name, self.help, prefixes, registry_labels)
     }
 
     /// Encodes schema for binary encoding.
@@ -118,15 +125,24 @@ impl<'a> FamilyItem<'a> {
         &self,
         schema: &mut Schema,
         prefixes: &[&str],
-        labels: &[(Cow<'_, str>, Cow<'_, str>)],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
         self.family
-            .encode_schema_fam(schema, self.name, self.help, prefixes, labels);
+            .encode_schema(schema, self.name, self.help, prefixes, registry_labels);
     }
 
     /// Encodes values for binary encoding.
     pub fn encode_values(&self, values: &mut Values) {
-        self.family.encode_values_fam(values);
+        self.family.encode_values(values);
+    }
+
+    /// Attaches a schema-version counter to the underlying family.
+    ///
+    /// Used by [`Registry::register`](crate::Registry::register) to wire
+    /// every family in a metrics group up to the registry's version counter
+    /// so that adding a new label combination invalidates the cached schema.
+    pub fn attach_schema_version(&self, version: Arc<AtomicU64>) {
+        self.family.attach_schema_version(version);
     }
 }
 
@@ -145,6 +161,9 @@ where
 {
     inner: Arc<RwLock<HashMap<L, Arc<M>>>>,
     constructor: Constructor<M>,
+    // Set when the parent group is registered. Bumped on each new label combo
+    // so the binary encoder re-publishes the schema.
+    schema_version: Arc<OnceLock<Arc<AtomicU64>>>,
 }
 
 #[cfg(feature = "metrics")]
@@ -158,6 +177,7 @@ where
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
             constructor: Arc::new(M::default),
+            schema_version: Arc::new(OnceLock::new()),
         }
     }
 }
@@ -184,10 +204,15 @@ where
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
             constructor: Arc::new(constructor),
+            schema_version: Arc::new(OnceLock::new()),
         }
     }
 
     /// Gets or creates a metric for the given labels.
+    ///
+    /// Each call performs a `HashMap` lookup under a read lock. For hot paths
+    /// where the label set is stable, hold on to the returned `Arc<M>` and
+    /// reuse it instead of calling `get_or_create` on every record.
     pub fn get_or_create(&self, labels: &L) -> Arc<M> {
         if let Some(metric) = self.inner.read().get(labels) {
             return Arc::clone(metric);
@@ -200,7 +225,15 @@ where
 
         let metric = Arc::new((self.constructor)());
         guard.insert(labels.clone(), Arc::clone(&metric));
+        if let Some(v) = self.schema_version.get() {
+            v.fetch_add(1, Ordering::Relaxed);
+        }
         metric
+    }
+
+    /// Looks up an existing metric without creating one. Read-only fast path.
+    pub fn get(&self, labels: &L) -> Option<Arc<M>> {
+        self.inner.read().get(labels).map(Arc::clone)
     }
 
     /// Removes the metric for the given labels.
@@ -221,118 +254,6 @@ where
     /// Returns true if empty.
     pub fn is_empty(&self) -> bool {
         self.inner.read().is_empty()
-    }
-
-    /// Encodes to OpenMetrics text format.
-    pub fn encode_openmetrics<'a>(
-        &self,
-        writer: &mut (impl Write + ?Sized),
-        name: &str,
-        help: &str,
-        prefixes: &[&str],
-        registry_labels: impl Iterator<Item = (&'a str, &'a str)>,
-    ) -> fmt::Result
-    where
-        L: Ord,
-    {
-        let reg_labels: Vec<_> = registry_labels
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-        self.encode_openmetrics_impl(writer, name, help, prefixes, &reg_labels)
-    }
-
-    fn encode_openmetrics_impl(
-        &self,
-        writer: &mut (impl Write + ?Sized),
-        name: &str,
-        help: &str,
-        prefixes: &[&str],
-        registry_labels: &[(String, String)],
-    ) -> fmt::Result
-    where
-        L: Ord,
-    {
-        let guard = self.inner.read();
-        if guard.is_empty() {
-            return Ok(());
-        }
-
-        let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        let metric_type = entries[0].1.r#type();
-
-        writer.write_str("# HELP ")?;
-        encode_prefix_name(writer, prefixes, name)?;
-        writeln!(writer, " {help}.")?;
-
-        writer.write_str("# TYPE ")?;
-        encode_prefix_name(writer, prefixes, name)?;
-        writeln!(writer, " {}", metric_type.as_str())?;
-
-        for (label_set, metric) in entries {
-            let family_labels: Vec<_> = label_set
-                .encode_label_pairs()
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.as_str().into_owned()))
-                .collect();
-            encode_metric_value(
-                writer,
-                name,
-                prefixes,
-                registry_labels,
-                &family_labels,
-                &metric.value(),
-            )?;
-        }
-        Ok(())
-    }
-
-    /// Encodes schema for binary encoding.
-    pub fn encode_schema(
-        &self,
-        schema: &mut Schema,
-        name: &str,
-        help: &str,
-        prefixes: &[&str],
-        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
-    ) where
-        L: Ord,
-    {
-        let guard = self.inner.read();
-        let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        for (labels, metric) in entries {
-            let mut all_labels: Vec<_> = registry_labels
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect();
-            all_labels.extend(
-                labels
-                    .encode_label_pairs()
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.as_str().to_string())),
-            );
-            schema.push(
-                ItemSchema::new(name, prefixes, &all_labels, metric.r#type()),
-                help,
-            );
-        }
-    }
-
-    /// Encodes values for binary encoding. Order must match schema.
-    pub fn encode_values(&self, values: &mut Values)
-    where
-        L: Ord,
-    {
-        let guard = self.inner.read();
-        let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        for (_, metric) in entries {
-            values.items.push(metric.value());
-        }
     }
 }
 
@@ -393,6 +314,11 @@ where
         Arc::clone(&self.default_metric)
     }
 
+    /// Looks up an existing metric without creating one (always returns `None`).
+    pub fn get(&self, _labels: &L) -> Option<Arc<M>> {
+        None
+    }
+
     /// Removes the metric for the given labels (no-op).
     pub fn remove(&self, _labels: &L) -> Option<Arc<M>> {
         None
@@ -410,41 +336,6 @@ where
     pub fn is_empty(&self) -> bool {
         true
     }
-
-    /// Encodes to OpenMetrics text format (no-op).
-    pub fn encode_openmetrics<'a>(
-        &self,
-        _writer: &mut impl Write,
-        _name: &str,
-        _help: &str,
-        _prefixes: &[&str],
-        _registry_labels: impl Iterator<Item = (&'a str, &'a str)>,
-    ) -> fmt::Result
-    where
-        L: Ord,
-    {
-        Ok(())
-    }
-
-    /// Encodes schema for binary encoding (no-op).
-    pub fn encode_schema(
-        &self,
-        _schema: &mut Schema,
-        _name: &str,
-        _help: &str,
-        _prefixes: &[&str],
-        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
-    ) where
-        L: Ord,
-    {
-    }
-
-    /// Encodes values for binary encoding (no-op).
-    pub fn encode_values(&self, _values: &mut Values)
-    where
-        L: Ord,
-    {
-    }
 }
 
 // ============================================================================
@@ -461,6 +352,7 @@ where
         Self {
             inner: Arc::clone(&self.inner),
             constructor: Arc::clone(&self.constructor),
+            schema_version: Arc::clone(&self.schema_version),
         }
     }
 }
@@ -471,22 +363,48 @@ where
     L: EncodeLabelSet + Ord,
     M: Metric + 'static,
 {
-    fn encode_openmetrics_fam(
+    fn encode_openmetrics(
         &self,
         writer: &mut dyn Write,
         name: &str,
         help: &str,
         prefixes: &[&str],
-        registry_labels: &[(&str, &str)],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
-        let reg_labels: Vec<_> = registry_labels
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect();
-        self.encode_openmetrics_impl(writer, name, help, prefixes, &reg_labels)
+        let guard = self.inner.read();
+        if guard.is_empty() {
+            return Ok(());
+        }
+
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        let metric_type = entries[0].1.r#type();
+
+        writer.write_str("# HELP ")?;
+        encode_prefix_name(writer, prefixes, name)?;
+        writer.write_str(" ")?;
+        encode_help_text(writer, help)?;
+
+        writer.write_str("# TYPE ")?;
+        encode_prefix_name(writer, prefixes, name)?;
+        writeln!(writer, " {}", metric_type.as_str())?;
+
+        for (label_set, metric) in entries {
+            let pairs = label_set.encode_label_pairs();
+            encode_metric_value(
+                writer,
+                name,
+                prefixes,
+                registry_labels,
+                &pairs,
+                &metric.value(),
+            )?;
+        }
+        Ok(())
     }
 
-    fn encode_schema_fam(
+    fn encode_schema(
         &self,
         schema: &mut Schema,
         name: &str,
@@ -494,15 +412,39 @@ where
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
-        self.encode_schema(schema, name, help, prefixes, registry_labels);
+        let guard = self.inner.read();
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        for (labels, metric) in entries {
+            let pairs = labels.encode_label_pairs();
+            let all_labels = registry_labels
+                .iter()
+                .map(|(k, v)| (k.as_ref(), v.as_ref().into()))
+                .chain(pairs.iter().map(|(k, v)| (*k, v.as_str())));
+            schema.push(
+                ItemSchema::from_label_iter(name, prefixes, all_labels, metric.r#type()),
+                help,
+            );
+        }
     }
 
-    fn encode_values_fam(&self, values: &mut Values) {
-        self.encode_values(values);
+    fn encode_values(&self, values: &mut Values) {
+        let guard = self.inner.read();
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        for (_, metric) in entries {
+            values.items.push(metric.value());
+        }
     }
 
-    fn is_empty_fam(&self) -> bool {
-        self.is_empty()
+    fn is_empty(&self) -> bool {
+        Family::is_empty(self)
+    }
+
+    fn attach_schema_version(&self, version: Arc<AtomicU64>) {
+        let _ = self.schema_version.set(version);
     }
 }
 
@@ -532,7 +474,7 @@ where
 
         let guard = self.inner.read();
         let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+        entries.sort_by_key(|(a, _)| *a);
 
         let mut seq = serializer.serialize_seq(Some(entries.len()))?;
         for (labels, metric) in entries {
@@ -583,18 +525,18 @@ where
     L: EncodeLabelSet + Ord,
     M: Metric + 'static,
 {
-    fn encode_openmetrics_fam(
+    fn encode_openmetrics(
         &self,
         _writer: &mut dyn Write,
         _name: &str,
         _help: &str,
         _prefixes: &[&str],
-        _registry_labels: &[(&str, &str)],
+        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
         Ok(())
     }
 
-    fn encode_schema_fam(
+    fn encode_schema(
         &self,
         _schema: &mut Schema,
         _name: &str,
@@ -604,11 +546,13 @@ where
     ) {
     }
 
-    fn encode_values_fam(&self, _values: &mut Values) {}
+    fn encode_values(&self, _values: &mut Values) {}
 
-    fn is_empty_fam(&self) -> bool {
+    fn is_empty(&self) -> bool {
         true
     }
+
+    fn attach_schema_version(&self, _version: Arc<AtomicU64>) {}
 }
 
 #[cfg(not(feature = "metrics"))]
@@ -734,15 +678,15 @@ mod tests {
 
         // OpenMetrics without registry labels
         let mut out = String::new();
-        family
-            .encode_openmetrics(
-                &mut out,
-                "requests",
-                "HTTP requests",
-                &["http"],
-                std::iter::empty(),
-            )
-            .unwrap();
+        FamilyEncoder::encode_openmetrics(
+            &family,
+            &mut out,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &[],
+        )
+        .unwrap();
         assert!(out.contains("# HELP http_requests HTTP requests."));
         assert!(out.contains("# TYPE http_requests counter"));
         assert!(out.contains(r#"http_requests_total{method="GET",status="200"} 10"#));
@@ -750,24 +694,32 @@ mod tests {
 
         // OpenMetrics with registry labels
         let mut out = String::new();
-        family
-            .encode_openmetrics(
-                &mut out,
-                "requests",
-                "HTTP requests",
-                &["http"],
-                [("service", "api")].into_iter(),
-            )
-            .unwrap();
+        let registry_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+        FamilyEncoder::encode_openmetrics(
+            &family,
+            &mut out,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &registry_labels,
+        )
+        .unwrap();
         assert!(out.contains(r#"http_requests_total{service="api",method="GET",status="200"} 10"#));
 
         // Binary schema + values
         let mut schema = Schema::default();
-        family.encode_schema(&mut schema, "requests", "HTTP requests", &["http"], &[]);
+        FamilyEncoder::encode_schema(
+            &family,
+            &mut schema,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &[],
+        );
         assert_eq!(schema.items.len(), 2);
 
         let mut values = Values::default();
-        family.encode_values(&mut values);
+        FamilyEncoder::encode_values(&family, &mut values);
         assert_eq!(values.items.len(), 2);
     }
 }

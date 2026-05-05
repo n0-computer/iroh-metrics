@@ -1,4 +1,4 @@
-use heck::ToSnakeCase;
+use heck::{ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutySnakeCase, ToSnakeCase};
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
@@ -38,78 +38,104 @@ pub fn derive_encode_label_set(input: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Derives [`EncodeLabelValue`] for an enum with only unit variants.
+///
+/// Maps each variant to its name (snake_case by default). Use
+/// `#[label(rename_all = "...")]` on the enum or `#[label(name = "...")]`
+/// per-variant to customize.
+#[proc_macro_derive(EncodeLabelValue, attributes(label))]
+pub fn derive_encode_label_value(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    expand_encode_label_value(&input)
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
+
 fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
     let (name, fields) = parse_named_struct(input)?;
 
-    // Separate regular metrics and Family fields
-    let (metric_fields, family_fields): (Vec<_>, Vec<_>) =
-        fields.iter().partition(|f| !is_family_type(&f.ty));
-
-    let metric_count = metric_fields.len();
-    let family_count = family_fields.len();
-
-    // Generate match arms for regular metrics
-    let mut metric_match_arms = quote! {};
-    for (i, field) in metric_fields.iter().enumerate() {
-        let ident = field.ident.as_ref().unwrap();
-        let ident_str = ident.to_string();
+    // Partition into scalars and families. `Family<_, _>` is detected by the
+    // last path segment of the field type, so type aliases require an
+    // explicit `#[metrics(family)]` override.
+    let mut metrics = Vec::new();
+    let mut families = Vec::new();
+    for field in fields.iter() {
         let attr = parse_metrics_attr(&field.attrs)?;
-        let help = attr
-            .help
-            .or_else(|| parse_doc_first_line(&field.attrs))
-            .unwrap_or_else(|| ident_str.clone());
-        metric_match_arms.extend(quote! {
-            #i => Some(::iroh_metrics::MetricItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::Metric)),
-        });
+        let info = field_info(field, attr)?;
+        if info.is_family {
+            families.push(info);
+        } else {
+            metrics.push(info);
+        }
     }
 
-    // Generate match arms for Family fields
-    let mut family_match_arms = quote! {};
-    for (i, field) in family_fields.iter().enumerate() {
-        let ident = field.ident.as_ref().unwrap();
-        let ident_str = ident.to_string();
-        let attr = parse_metrics_attr(&field.attrs)?;
-        let help = attr
-            .help
-            .or_else(|| parse_doc_first_line(&field.attrs))
-            .unwrap_or_else(|| ident_str.clone());
-        family_match_arms.extend(quote! {
-            #i => Some(::iroh_metrics::FamilyItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::FamilyEncoder)),
-        });
-    }
+    let metric_count = metrics.len();
+    let family_count = families.len();
 
-    let family_impl = if family_count > 0 {
+    let metric_arms = metrics.iter().enumerate().map(|(i, f)| {
+        let (ident, ident_str, help) = (f.ident, &f.ident_str, &f.help);
         quote! {
-            fn family_count(&self) -> usize {
-                #family_count
-            }
+            #i => Some(::iroh_metrics::MetricItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::Metric)),
+        }
+    });
+    let family_arms = families.iter().enumerate().map(|(i, f)| {
+        let (ident, ident_str, help) = (f.ident, &f.ident_str, &f.help);
+        quote! {
+            #i => Some(::iroh_metrics::FamilyItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::FamilyEncoder)),
+        }
+    });
 
+    let family_impl = (family_count > 0).then(|| {
+        quote! {
+            fn family_count(&self) -> usize { #family_count }
             fn family_ref(&self, n: usize) -> Option<::iroh_metrics::FamilyItem<'_>> {
                 match n {
-                    #family_match_arms
+                    #(#family_arms)*
                     _ => None,
                 }
             }
         }
-    } else {
-        quote! {}
-    };
+    });
 
     Ok(quote! {
         impl ::iroh_metrics::iterable::Iterable for #name {
-            fn field_count(&self) -> usize {
-                #metric_count
-            }
-
+            fn field_count(&self) -> usize { #metric_count }
             fn field_ref(&self, n: usize) -> Option<::iroh_metrics::MetricItem<'_>> {
                 match n {
-                    #metric_match_arms
+                    #(#metric_arms)*
                     _ => None,
                 }
             }
-
             #family_impl
         }
+    })
+}
+
+/// Per-field info pre-computed once for `expand_iterable`.
+struct FieldInfo<'a> {
+    ident: &'a Ident,
+    ident_str: String,
+    /// Help text: explicit `#[metrics(help = "...")]` > first doc line > field name.
+    help: String,
+    is_family: bool,
+}
+
+fn field_info<'a>(field: &'a syn::Field, attr: MetricsAttr) -> Result<FieldInfo<'a>, Error> {
+    let ident = field
+        .ident
+        .as_ref()
+        .ok_or_else(|| Error::new(field.span(), "Only named fields are supported"))?;
+    let ident_str = ident.to_string();
+    let help = attr
+        .help
+        .or_else(|| parse_doc_first_line(&field.attrs))
+        .unwrap_or_else(|| ident_str.clone());
+    let is_family = attr.family || is_family_type(&field.ty);
+    Ok(FieldInfo {
+        ident,
+        ident_str,
+        help,
+        is_family,
     })
 }
 
@@ -217,6 +243,7 @@ fn expand_metrics_group_set(input: &DeriveInput) -> Result<proc_macro2::TokenStr
 
 fn expand_encode_label_set(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
     let (name, fields) = parse_named_struct(input)?;
+    let struct_attr = parse_label_struct_attr(&input.attrs)?;
 
     let mut label_pairs = vec![];
     for field in fields.iter() {
@@ -231,12 +258,20 @@ fn expand_encode_label_set(input: &DeriveInput) -> Result<proc_macro2::TokenStre
             continue;
         }
 
-        // Use custom name or field name
-        let label_name = attr.name.unwrap_or_else(|| ident.to_string());
+        // Field-level `name = ...` wins; otherwise apply the struct-level
+        // `rename_all` transformation to the field ident.
+        let label_name = match attr.name {
+            Some(n) => n,
+            None => match struct_attr.rename_all {
+                Some(rule) => rule.apply(&ident.to_string()),
+                None => ident.to_string(),
+            },
+        };
 
-        // Generate the label pair based on field type
+        // Borrow the field through `EncodeLabelValue` so string fields
+        // don't allocate on every scrape.
         label_pairs.push(quote! {
-            (#label_name, ::iroh_metrics::LabelValue::from(self.#ident.clone()))
+            (#label_name, ::iroh_metrics::EncodeLabelValue::encode_label_value(&self.#ident))
         });
     }
 
@@ -247,6 +282,109 @@ fn expand_encode_label_set(input: &DeriveInput) -> Result<proc_macro2::TokenStre
             }
         }
     })
+}
+
+fn expand_encode_label_value(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error> {
+    let name = &input.ident;
+    let Data::Enum(data) = &input.data else {
+        return Err(Error::new(
+            input.span(),
+            "EncodeLabelValue can only be derived for enums with unit variants.",
+        ));
+    };
+    let enum_attr = parse_label_struct_attr(&input.attrs)?;
+    let rule = enum_attr.rename_all.unwrap_or(RenameRule::SnakeCase);
+
+    let mut arms = Vec::new();
+    for variant in &data.variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            return Err(Error::new(
+                variant.span(),
+                "EncodeLabelValue only supports unit variants.",
+            ));
+        }
+        let attr = parse_label_attr(&variant.attrs)?;
+        let ident = &variant.ident;
+        let label = attr.name.unwrap_or_else(|| rule.apply(&ident.to_string()));
+        arms.push(quote! {
+            Self::#ident => ::iroh_metrics::LabelValue::Str(::std::borrow::Cow::Borrowed(#label)),
+        });
+    }
+
+    Ok(quote! {
+        impl ::iroh_metrics::EncodeLabelValue for #name {
+            fn encode_label_value(&self) -> ::iroh_metrics::LabelValue<'_> {
+                match self {
+                    #(#arms)*
+                }
+            }
+        }
+    })
+}
+
+#[derive(Clone, Copy)]
+enum RenameRule {
+    SnakeCase,
+    CamelCase,
+    PascalCase,
+    ScreamingSnakeCase,
+    KebabCase,
+    Lowercase,
+    Uppercase,
+}
+
+impl RenameRule {
+    fn parse(s: &str, span: proc_macro2::Span) -> Result<Self, Error> {
+        match s {
+            "snake_case" => Ok(Self::SnakeCase),
+            "camelCase" => Ok(Self::CamelCase),
+            "PascalCase" => Ok(Self::PascalCase),
+            "SCREAMING_SNAKE_CASE" => Ok(Self::ScreamingSnakeCase),
+            "kebab-case" => Ok(Self::KebabCase),
+            "lowercase" => Ok(Self::Lowercase),
+            "UPPERCASE" => Ok(Self::Uppercase),
+            other => Err(Error::new(
+                span,
+                format!(
+                    "unknown rename_all value `{other}`. Supported: snake_case, camelCase, \
+                     PascalCase, SCREAMING_SNAKE_CASE, kebab-case, lowercase, UPPERCASE.",
+                ),
+            )),
+        }
+    }
+
+    fn apply(self, ident: &str) -> String {
+        match self {
+            Self::SnakeCase => ident.to_snake_case(),
+            Self::CamelCase => ident.to_lower_camel_case(),
+            Self::PascalCase => ident.to_pascal_case(),
+            Self::ScreamingSnakeCase => ident.to_shouty_snake_case(),
+            Self::KebabCase => ident.to_kebab_case(),
+            Self::Lowercase => ident.to_lowercase(),
+            Self::Uppercase => ident.to_uppercase(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct LabelStructAttr {
+    rename_all: Option<RenameRule>,
+}
+
+fn parse_label_struct_attr(attrs: &[Attribute]) -> Result<LabelStructAttr, Error> {
+    let mut out = LabelStructAttr::default();
+    for attr in attrs.iter().filter(|attr| attr.path().is_ident("label")) {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("rename_all") {
+                let s: LitStr = meta.value()?.parse()?;
+                out.rename_all = Some(RenameRule::parse(&s.value(), s.span())?);
+                Ok(())
+            } else {
+                Err(meta.error("The struct-level `label` attribute supports only `rename_all`."))
+            }
+        })?;
+    }
+    Ok(out)
 }
 
 fn parse_doc_first_line(attrs: &[Attribute]) -> Option<String> {
@@ -268,6 +406,9 @@ struct MetricsAttr {
     name: Option<String>,
     help: Option<String>,
     default: bool,
+    /// `#[metrics(family)]` — force-treat the field as a `Family<_, _>`
+    /// even when the type is hidden behind an alias.
+    family: bool,
 }
 
 #[derive(Default)]
@@ -297,9 +438,12 @@ fn parse_metrics_attr(attrs: &[Attribute]) -> Result<MetricsAttr, syn::Error> {
             } else if meta.path.is_ident("default") {
                 out.default = true;
                 Ok(())
+            } else if meta.path.is_ident("family") {
+                out.family = true;
+                Ok(())
             } else {
                 Err(meta.error(
-                    "The `metrics` attribute supports only `name`, `help` and `default` fields.",
+                    "The `metrics` attribute supports only `name`, `help`, `default`, and `family`.",
                 ))
             }
         })?;

@@ -9,7 +9,7 @@ use std::{
 
 use portable_atomic::{AtomicU64, Ordering};
 
-use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::encode_eof};
+use crate::{Error, MetricsGroup, MetricsGroupSet, encoding::encode_eof, iterable::IntoIterable};
 
 /// A registry for [`MetricsGroup`].
 #[derive(Debug, Default)]
@@ -74,6 +74,9 @@ impl Registry {
     /// Registers a [`MetricsGroup`] into this registry.
     pub fn register(&mut self, metrics_group: Arc<dyn MetricsGroup>) {
         self.schema_version.fetch_add(1, Ordering::Relaxed);
+        for family in IntoIterable::family_iter(&*metrics_group) {
+            family.attach_schema_version(Arc::clone(&self.schema_version));
+        }
         self.metrics.push(metrics_group);
     }
 

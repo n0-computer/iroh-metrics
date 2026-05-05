@@ -28,8 +28,14 @@ pub mod static_core;
 /// Each field becomes a label with the field name as the key.
 /// Use `#[label(name = "custom")]` to customize the label key.
 /// Use `#[label(skip)]` to exclude a field from the label set.
+/// Use `#[label(rename_all = "...")]` on the struct to rename all fields by case rule.
+///
+/// Field types must implement [`EncodeLabelValue`]. Out of the box this
+/// covers `String`, `&'static str`, the integer types, and `bool`.
 ///
 /// The struct must also derive `Clone`, `Hash`, `PartialEq`, and `Eq`.
+/// To use the label set with [`Family`], also derive `PartialOrd` and `Ord`
+/// (the encoder produces output sorted by label set).
 ///
 /// # Example
 ///
@@ -37,6 +43,7 @@ pub mod static_core;
 /// use iroh_metrics::EncodeLabelSet;
 ///
 /// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
+/// #[label(rename_all = "kebab-case")]
 /// struct HttpLabels {
 ///     method: String,
 ///     #[label(name = "status_code")]
@@ -44,6 +51,12 @@ pub mod static_core;
 /// }
 /// ```
 pub use iroh_metrics_derive::EncodeLabelSet;
+/// Derives [`EncodeLabelValue`] for an enum with only unit variants.
+///
+/// Each variant becomes a string label; default casing is `snake_case`.
+/// Use `#[label(rename_all = "...")]` on the enum or `#[label(name = "...")]`
+/// on a variant to customize.
+pub use iroh_metrics_derive::EncodeLabelValue;
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -59,7 +72,11 @@ pub use iroh_metrics_derive::EncodeLabelSet;
 /// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
 /// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
 ///
-/// It will also generate a [`Iterable`] impl.
+/// It will also generate a [`Iterable`] impl. Fields with the `Family<_, _>`
+/// type are routed through the family-encoder iteration. Detection inspects
+/// the last segment of the field type, so `iroh_metrics::Family<L, M>` is
+/// recognized but a type alias is not — annotate the field with
+/// `#[metrics(family)]` in that case.
 ///
 /// [`Iterable`]: iterable::Iterable
 pub use iroh_metrics_derive::MetricsGroup;

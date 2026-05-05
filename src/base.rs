@@ -763,4 +763,130 @@ combined_bar_count_total{x="y"} 10
         assert!(output.contains(r#"transport="relay""#));
         assert!(output.contains("magicsock_latency"));
     }
+
+    // Shared fixtures for the family-related tests below.
+    #[cfg(test)]
+    mod family_tests {
+        use std::sync::{Arc, RwLock};
+
+        use iroh_metrics_derive::MetricsGroup;
+
+        use crate::{
+            Counter, Family, MetricsSource, Registry,
+            encoding::{Decoder, Encoder, Update},
+            iterable::IntoIterable,
+        };
+
+        #[derive(
+            Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, iroh_metrics::EncodeLabelSet,
+        )]
+        struct Proto {
+            proto: String,
+        }
+
+        fn proto(s: &str) -> Proto {
+            Proto { proto: s.into() }
+        }
+
+        #[derive(Debug, Default, MetricsGroup)]
+        #[metrics(name = "net")]
+        struct Net {
+            /// Total bytes
+            bytes: Counter,
+            /// Bytes per protocol
+            bytes_by_proto: Family<Proto, Counter>,
+        }
+
+        fn registered() -> (Arc<Net>, Arc<RwLock<Registry>>) {
+            let metrics = Arc::new(Net::default());
+            let mut registry = Registry::default();
+            registry.register(metrics.clone());
+            (metrics, Arc::new(RwLock::new(registry)))
+        }
+
+        #[test]
+        fn encode_decode_roundtrip_matches_registry() {
+            let (metrics, registry) = registered();
+            metrics.bytes.inc_by(100);
+            metrics
+                .bytes_by_proto
+                .get_or_create(&proto("tcp"))
+                .inc_by(40);
+            metrics
+                .bytes_by_proto
+                .get_or_create(&proto("udp"))
+                .inc_by(60);
+
+            let mut encoder = Encoder::new(registry.clone());
+            let mut decoder = Decoder::default();
+            decoder
+                .import_bytes(&encoder.export_bytes().unwrap())
+                .unwrap();
+
+            let from_decoder = decoder.encode_openmetrics_to_string().unwrap();
+            assert_eq!(
+                from_decoder,
+                registry.encode_openmetrics_to_string().unwrap()
+            );
+            assert!(from_decoder.contains(r#"net_bytes_by_proto_total{proto="tcp"} 40"#));
+            assert!(from_decoder.contains(r#"net_bytes_by_proto_total{proto="udp"} 60"#));
+
+            // Values-only update (no schema change) must still round-trip.
+            metrics
+                .bytes_by_proto
+                .get_or_create(&proto("tcp"))
+                .inc_by(5);
+            decoder
+                .import_bytes(&encoder.export_bytes().unwrap())
+                .unwrap();
+            assert_eq!(
+                decoder.encode_openmetrics_to_string().unwrap(),
+                registry.encode_openmetrics_to_string().unwrap(),
+            );
+        }
+
+        #[test]
+        fn new_label_combo_bumps_schema_version() {
+            let (metrics, registry) = registered();
+            metrics.bytes_by_proto.get_or_create(&proto("tcp")).inc();
+
+            let mut encoder = Encoder::new(registry.clone());
+            // First export publishes schema; second is cached.
+            let first = encoder.export();
+            assert_eq!(first.schema.expect("initial schema").items.len(), 2);
+            assert!(encoder.export().schema.is_none(), "schema must be cached");
+
+            // New label combo invalidates the cached schema.
+            metrics.bytes_by_proto.get_or_create(&proto("udp")).inc();
+            let third = encoder.export();
+            let schema = third.schema.expect("schema re-published after new combo");
+            assert_eq!(schema.items.len(), 3);
+
+            let mut decoder = Decoder::default();
+            decoder.import(Update {
+                schema: Some(schema),
+                values: third.values,
+            });
+            assert_eq!(
+                decoder.encode_openmetrics_to_string().unwrap(),
+                registry.encode_openmetrics_to_string().unwrap(),
+            );
+        }
+
+        #[test]
+        fn metrics_family_attr_overrides_alias_detection() {
+            type Aliased = Family<Proto, Counter>;
+
+            #[derive(Debug, Default, MetricsGroup)]
+            #[metrics(name = "alias")]
+            struct AliasMetrics {
+                #[metrics(family)]
+                via_alias: Aliased,
+            }
+
+            let m = AliasMetrics::default();
+            assert_eq!(IntoIterable::family_iter(&m).count(), 1);
+            assert_eq!(crate::MetricsGroup::iter(&m).count(), 0);
+        }
+    }
 }
