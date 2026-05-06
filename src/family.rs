@@ -7,15 +7,13 @@
 #[cfg(feature = "metrics")]
 use std::collections::HashMap;
 #[cfg(feature = "metrics")]
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
     sync::Arc,
 };
 
-#[cfg(feature = "metrics")]
-use parking_lot::RwLock;
 use portable_atomic::AtomicU64;
 #[cfg(feature = "metrics")]
 use portable_atomic::Ordering;
@@ -214,11 +212,11 @@ where
     /// where the label set is stable, hold on to the returned `Arc<M>` and
     /// reuse it instead of calling `get_or_create` on every record.
     pub fn get_or_create(&self, labels: &L) -> Arc<M> {
-        if let Some(metric) = self.inner.read().get(labels) {
+        if let Some(metric) = self.inner.read().expect("poisoned").get(labels) {
             return Arc::clone(metric);
         }
 
-        let mut guard = self.inner.write();
+        let mut guard = self.inner.write().expect("poisoned");
         if let Some(metric) = guard.get(labels) {
             return Arc::clone(metric);
         }
@@ -233,27 +231,27 @@ where
 
     /// Looks up an existing metric without creating one. Read-only fast path.
     pub fn get(&self, labels: &L) -> Option<Arc<M>> {
-        self.inner.read().get(labels).map(Arc::clone)
+        self.inner.read().expect("poisoned").get(labels).map(Arc::clone)
     }
 
     /// Removes the metric for the given labels.
     pub fn remove(&self, labels: &L) -> Option<Arc<M>> {
-        self.inner.write().remove(labels)
+        self.inner.write().expect("poisoned").remove(labels)
     }
 
     /// Removes all metrics.
     pub fn clear(&self) {
-        self.inner.write().clear();
+        self.inner.write().expect("poisoned").clear();
     }
 
     /// Returns the number of label combinations tracked.
     pub fn len(&self) -> usize {
-        self.inner.read().len()
+        self.inner.read().expect("poisoned").len()
     }
 
     /// Returns true if empty.
     pub fn is_empty(&self) -> bool {
-        self.inner.read().is_empty()
+        self.inner.read().expect("poisoned").is_empty()
     }
 }
 
@@ -371,7 +369,7 @@ where
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result {
-        let guard = self.inner.read();
+        let guard = self.inner.read().expect("poisoned");
         if guard.is_empty() {
             return Ok(());
         }
@@ -412,7 +410,7 @@ where
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
-        let guard = self.inner.read();
+        let guard = self.inner.read().expect("poisoned");
         let mut entries: Vec<_> = guard.iter().collect();
         entries.sort_by_key(|(a, _)| *a);
 
@@ -430,7 +428,7 @@ where
     }
 
     fn encode_values(&self, values: &mut Values) {
-        let guard = self.inner.read();
+        let guard = self.inner.read().expect("poisoned");
         let mut entries: Vec<_> = guard.iter().collect();
         entries.sort_by_key(|(a, _)| *a);
 
@@ -455,7 +453,7 @@ where
     M: Metric,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let guard = self.inner.read();
+        let guard = self.inner.read().expect("poisoned");
         f.debug_struct("Family")
             .field("len", &guard.len())
             .field("labels", &guard.keys().collect::<Vec<_>>())
@@ -472,7 +470,7 @@ where
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeSeq;
 
-        let guard = self.inner.read();
+        let guard = self.inner.read().expect("poisoned");
         let mut entries: Vec<_> = guard.iter().collect();
         entries.sort_by_key(|(a, _)| *a);
 
@@ -494,7 +492,7 @@ where
         let entries: Vec<(L, MetricValue)> = Vec::deserialize(deserializer)?;
         let family = Family::new();
         {
-            let mut guard = family.inner.write();
+            let mut guard = family.inner.write().expect("poisoned");
             for (labels, value) in entries {
                 let metric = Arc::new(M::default());
                 metric.set_value(value);

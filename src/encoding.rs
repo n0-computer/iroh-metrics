@@ -15,24 +15,24 @@ use crate::{
     iterable::IntoIterable,
 };
 
-/// Writes a label value directly to the writer.
+/// Encodes a label value directly into the writer.
 ///
 /// Blanket-implemented for any `AsRef<str>` so existing callers using `&str`,
 /// `String`, or `Cow<str>` continue to work. The dedicated impl for
 /// [`LabelValue`] avoids allocating an intermediate `String` for integer and
 /// boolean variants.
-pub(crate) trait WriteLabelValue {
-    fn write_label_value<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result;
+pub(crate) trait EncodeLabelTo {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result;
 }
 
-impl<T: AsRef<str> + ?Sized> WriteLabelValue for T {
-    fn write_label_value<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
+impl<T: AsRef<str> + ?Sized> EncodeLabelTo for T {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
         w.write_str(self.as_ref())
     }
 }
 
-impl WriteLabelValue for LabelValue<'_> {
-    fn write_label_value<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
+impl EncodeLabelTo for LabelValue<'_> {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
         match self {
             LabelValue::Str(s) => w.write_str(s),
             LabelValue::Int(v) => w.write_str(itoa::Buffer::new().format(*v)),
@@ -63,9 +63,9 @@ pub(crate) fn encode_metric_value<W, K1, V1, K2, V2>(
 where
     W: Write + ?Sized,
     K1: AsRef<str>,
-    V1: WriteLabelValue,
+    V1: EncodeLabelTo,
     K2: AsRef<str>,
-    V2: WriteLabelValue,
+    V2: EncodeLabelTo,
 {
     match value {
         MetricValue::Counter(v) => {
@@ -124,9 +124,9 @@ fn encode_labels<W, K1, V1, K2, V2>(
 where
     W: Write + ?Sized,
     K1: AsRef<str>,
-    V1: WriteLabelValue,
+    V1: EncodeLabelTo,
     K2: AsRef<str>,
-    V2: WriteLabelValue,
+    V2: EncodeLabelTo,
 {
     if labels.is_empty() && extra_labels.is_empty() && le.is_none() {
         return Ok(());
@@ -141,7 +141,7 @@ where
         }
         w.write_str(k.as_ref())?;
         w.write_str("=\"")?;
-        v.write_label_value(w)?;
+        v.encode_to(w)?;
         w.write_char('"')?;
         first = false;
     }
@@ -152,7 +152,7 @@ where
         }
         w.write_str(k.as_ref())?;
         w.write_str("=\"")?;
-        v.write_label_value(w)?;
+        v.encode_to(w)?;
         w.write_char('"')?;
         first = false;
     }

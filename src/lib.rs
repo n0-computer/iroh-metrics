@@ -28,7 +28,9 @@ pub mod static_core;
 /// Each field becomes a label with the field name as the key.
 /// Use `#[label(name = "custom")]` to customize the label key.
 /// Use `#[label(skip)]` to exclude a field from the label set.
-/// Use `#[label(rename_all = "...")]` on the struct to rename all fields by case rule.
+/// Use `#[label(rename_all = "...")]` on the struct to rename all fields by
+/// case rule. Supported rules: `snake_case`, `camelCase`, `PascalCase`,
+/// `SCREAMING_SNAKE_CASE`, `kebab-case`, `lowercase`, `UPPERCASE`.
 ///
 /// Field types must implement [`EncodeLabelValue`]. Out of the box this
 /// covers `String`, `&'static str`, the integer types, and `bool`.
@@ -51,12 +53,15 @@ pub mod static_core;
 /// }
 /// ```
 pub use iroh_metrics_derive::EncodeLabelSet;
+
 /// Derives [`EncodeLabelValue`] for an enum with only unit variants.
 ///
 /// Each variant becomes a string label; default casing is `snake_case`.
 /// Use `#[label(rename_all = "...")]` on the enum or `#[label(name = "...")]`
-/// on a variant to customize.
+/// on a variant to customize. See [`macro@EncodeLabelSet`] for the list of
+/// supported `rename_all` values.
 pub use iroh_metrics_derive::EncodeLabelValue;
+
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -80,6 +85,7 @@ pub use iroh_metrics_derive::EncodeLabelValue;
 ///
 /// [`Iterable`]: iterable::Iterable
 pub use iroh_metrics_derive::MetricsGroup;
+
 /// Derives [`MetricsGroupSet`] for a struct.
 ///
 /// All fields of the struct must be public and have a type of `Arc<SomeType>`,
