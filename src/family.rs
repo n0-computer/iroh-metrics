@@ -849,6 +849,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn export_after_mid_walk_insert_keeps_schema_aligned() {
         // Regression for the version-tracking race in `Encoder::export`:
         // advancing `last_schema_version` to the *post-walk* version

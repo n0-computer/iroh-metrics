@@ -114,14 +114,16 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    #[cfg(feature = "postcard")]
     use std::sync::RwLock;
 
     use serde::{Deserialize, Serialize};
 
     use super::*;
+    #[cfg(feature = "postcard")]
+    use crate::encoding::{Decoder, Encoder};
     use crate::{
         Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
-        encoding::{Decoder, Encoder},
         iterable::Iterable,
     };
 
@@ -391,6 +393,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_encode_decode() {
         let mut registry = Registry::default();
         let metrics = Arc::new(FooMetrics::default());
@@ -565,6 +568,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_histogram_encode_decode() {
         use std::sync::{Arc, RwLock};
 
@@ -649,6 +653,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_histogram_openmetrics_from_decoder() {
         use std::sync::{Arc, RwLock};
 
@@ -805,6 +810,7 @@ combined_bar_count_total{x="y"} 10
         }
 
         #[test]
+        #[cfg(feature = "postcard")]
         fn encode_decode_roundtrip_matches_registry() {
             let (metrics, registry) = registered();
             metrics.bytes.inc_by(100);

@@ -34,6 +34,7 @@ iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "0.4.1" }
 itoa = "1"
 ryu = "1"
 portable-atomic = { version = "1", features = ["serde"] }
+postcard = { version = "1.1.1", default-features = false, features = ["use-std"], optional = true }
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 n0-error = "1.0.0-rc.0"
 tracing = "0.1.44"
@@ -49,7 +50,6 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
 rustls-platform-verifier = { version = "0.7", optional = true }
 tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
-postcard = { version = "1.1.1", features = ["use-std"] }
 
 [dev-dependencies]
 postcard = { version = "1.1.1", features = ["use-std"] }
@@ -61,6 +61,8 @@ default = ["metrics"]
 # Enables counters and other metrics being tracked.
 # If disabled, all counters return 0. Macros like `inc!` will do nothing.
 metrics = []
+# Enables importing/exporting metrics to bytes via postcard
+postcard = ["dep:postcard"]
 # Enables functionality to run a local metrics server that current metrics
 # are served at in prometheus format.
 # Pulls in quite a few libraries to make exposing an HTTP server possible.
