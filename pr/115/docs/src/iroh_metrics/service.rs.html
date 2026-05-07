@@ -337,7 +337,216 @@
 <a href="#336" id="336">336</a>
 <a href="#337" id="337">337</a>
 <a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
+<a href="#457" id="457">457</a>
+<a href="#458" id="458">458</a>
+<a href="#459" id="459">459</a>
+<a href="#460" id="460">460</a>
+<a href="#461" id="461">461</a>
+<a href="#462" id="462">462</a>
+<a href="#463" id="463">463</a>
+<a href="#464" id="464">464</a>
+<a href="#465" id="465">465</a>
+<a href="#466" id="466">466</a>
+<a href="#467" id="467">467</a>
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a>
+<a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
 //!
 //! Each service runs in a single background task that is aborted when the
 //! returned handle is dropped.
@@ -364,6 +573,7 @@
 /// [`shutdown`](Self::shutdown).
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>MetricsServer {
+    addr: SocketAddr,
     cancel: CancellationToken,
     task: AbortOnDropHandle&lt;()&gt;,
 }
@@ -376,12 +586,19 @@
     ) -&gt; std::io::Result&lt;<span class="self">Self</span>&gt; {
         <span class="macro">info!</span>(<span class="string">"Starting metrics server on {addr}"</span>);
         <span class="kw">let </span>listener = TcpListener::bind(addr).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>addr = listener.local_addr()<span class="question-mark">?</span>;
         <span class="kw">let </span>cancel = CancellationToken::new();
         <span class="kw">let </span>task = tokio::spawn(server_loop(listener, registry, cancel.clone()));
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            addr,
             cancel,
             task: AbortOnDropHandle::new(task),
         })
+    }
+
+    <span class="doccomment">/// Returns the local address the server is bound to.
+    </span><span class="kw">pub fn </span>local_addr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SocketAddr {
+        <span class="self">self</span>.addr
     }
 
     <span class="doccomment">/// Gracefully shuts down the server.
@@ -460,10 +677,12 @@
 
 <span class="doccomment">/// Periodic dumper that writes metrics as CSV rows to a file.
 ///
-/// Aborts the background task on drop.
+/// Aborts the background task on drop. For an orderly shutdown that lets
+/// the in-flight dump finish, call [`shutdown`](Self::shutdown).
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>MetricsDumper {
-    _task: AbortOnDropHandle&lt;()&gt;,
+    cancel: CancellationToken,
+    task: AbortOnDropHandle&lt;()&gt;,
 }
 
 <span class="kw">impl </span>MetricsDumper {
@@ -482,53 +701,100 @@
             .truncate(<span class="bool-val">true</span>)
             .open(<span class="kw-2">&amp;</span>path)
             .<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="kw">let </span>task = tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>file = tokio::io::BufWriter::new(file);
-            <span class="kw">let </span>start = Instant::now();
-            <span class="kw">let </span><span class="kw-2">mut </span>write_header = <span class="bool-val">true</span>;
-            <span class="kw">loop </span>{
-                <span class="kw">let </span>encoded = <span class="kw">match </span>registry.encode_openmetrics_to_string() {
-                    <span class="prelude-val">Ok</span>(s) =&gt; s,
-                    <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">error!</span>(<span class="string">"metrics dumper failed: {err:#}"</span>);
-                        <span class="kw">return</span>;
-                    }
-                };
-                <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="kw-2">&amp;</span>encoded, write_header).<span class="kw">await </span>{
-                    <span class="macro">error!</span>(<span class="string">"metrics dumper failed: {err:#}"</span>);
-                    <span class="kw">return</span>;
-                }
-                <span class="kw">if </span>!write_header {
-                    tokio::time::sleep(interval).<span class="kw">await</span>;
-                }
-                write_header = <span class="bool-val">false</span>;
-            }
-        });
+        <span class="kw">let </span>cancel = CancellationToken::new();
+        <span class="kw">let </span>task = tokio::spawn(dumper_loop(
+            tokio::io::BufWriter::new(file),
+            interval,
+            registry,
+            cancel.clone(),
+        ));
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-            _task: AbortOnDropHandle::new(task),
+            cancel,
+            task: AbortOnDropHandle::new(task),
         })
+    }
+
+    <span class="doccomment">/// Gracefully shuts down the dumper.
+    ///
+    /// Stops between dump cycles, letting the current dump finish before
+    /// returning.
+    </span><span class="kw">pub async fn </span>shutdown(<span class="self">self</span>) {
+        <span class="self">self</span>.cancel.cancel();
+        <span class="kw">let _ </span>= <span class="self">self</span>.task.<span class="kw">await</span>;
+    }
+}
+
+<span class="kw">async fn </span>dumper_loop(
+    <span class="kw-2">mut </span>file: tokio::io::BufWriter&lt;tokio::fs::File&gt;,
+    interval: Duration,
+    registry: <span class="kw">impl </span>MetricsSource,
+    cancel: CancellationToken,
+) {
+    <span class="kw">let </span>start = Instant::now();
+    <span class="kw">let </span><span class="kw-2">mut </span>write_header = <span class="bool-val">true</span>;
+    <span class="kw">loop </span>{
+        <span class="kw">let </span>encoded = <span class="kw">match </span>registry.encode_openmetrics_to_string() {
+            <span class="prelude-val">Ok</span>(s) =&gt; s,
+            <span class="prelude-val">Err</span>(err) =&gt; {
+                <span class="macro">error!</span>(<span class="string">"metrics dumper failed: {err:#}"</span>);
+                <span class="kw">return</span>;
+            }
+        };
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = dump_metrics(<span class="kw-2">&amp;mut </span>file, <span class="kw-2">&amp;</span>start, <span class="kw-2">&amp;</span>encoded, write_header).<span class="kw">await </span>{
+            <span class="macro">error!</span>(<span class="string">"metrics dumper failed: {err:#}"</span>);
+            <span class="kw">return</span>;
+        }
+        <span class="kw">if </span>write_header {
+            write_header = <span class="bool-val">false</span>;
+            <span class="kw">if </span>cancel.is_cancelled() {
+                <span class="kw">break</span>;
+            }
+        } <span class="kw">else </span>{
+            <span class="macro">tokio::select!</span> {
+                biased;
+                () = cancel.cancelled() =&gt; <span class="kw">break</span>,
+                () = tokio::time::sleep(interval) =&gt; {}
+            }
+        }
     }
 }
 
 <span class="doccomment">/// Periodic exporter that pushes metrics to a Prometheus push gateway.
 ///
-/// Aborts the background task on drop.
+/// Aborts the background task on drop. For an orderly shutdown that lets
+/// the in-flight push finish, call [`shutdown`](Self::shutdown).
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>MetricsPushExporter {
-    _task: AbortOnDropHandle&lt;()&gt;,
+    cancel: CancellationToken,
+    task: AbortOnDropHandle&lt;()&gt;,
 }
 
 <span class="kw">impl </span>MetricsPushExporter {
     <span class="doccomment">/// Spawns the push exporter in a background task.
     </span><span class="kw">pub fn </span>spawn(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>task = tokio::spawn(exporter_loop(cfg, registry));
+        <span class="kw">let </span>cancel = CancellationToken::new();
+        <span class="kw">let </span>task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
         <span class="self">Self </span>{
-            _task: AbortOnDropHandle::new(task),
+            cancel,
+            task: AbortOnDropHandle::new(task),
         }
+    }
+
+    <span class="doccomment">/// Gracefully shuts down the exporter.
+    ///
+    /// Stops between push cycles, letting the current push finish before
+    /// returning.
+    </span><span class="kw">pub async fn </span>shutdown(<span class="self">self</span>) {
+        <span class="self">self</span>.cancel.cancel();
+        <span class="kw">let _ </span>= <span class="self">self</span>.task.<span class="kw">await</span>;
     }
 }
 
-<span class="kw">async fn </span>exporter_loop(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) {
+<span class="kw">async fn </span>exporter_loop(
+    cfg: MetricsExporterConfig,
+    registry: <span class="kw">impl </span>MetricsSource,
+    cancel: CancellationToken,
+) {
     <span class="kw">let </span>MetricsExporterConfig {
         interval,
         endpoint,
@@ -536,28 +802,23 @@
         instance_name,
         username,
         password,
+        tls_config,
     } = cfg;
 
-    <span class="comment">// All of the `.expect`s were previously internal to the `reqwest::Client::new` call.
-    </span><span class="kw">let </span>provider = Arc::new(rustls::crypto::ring::default_provider());
+    <span class="kw">let </span>tls = tls_config.unwrap_or_else(default_tls_config);
     <span class="kw">let </span>push_client = reqwest::Client::builder()
-        .use_preconfigured_tls(
-            rustls::ClientConfig::builder_with_provider(provider.clone())
-                .with_safe_default_protocol_versions()
-                .expect(<span class="string">"no TLS 1.3 support in ring"</span>)
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(
-                    rustls_platform_verifier::Verifier::new(provider)
-                        .expect(<span class="string">"rustls platform verifier incompatible with ring"</span>),
-                )),
-        )
+        .use_preconfigured_tls(tls)
         .build()
-        .expect(<span class="string">"reqwest incompatible with ring"</span>);
+        .expect(<span class="string">"reqwest client builder failed"</span>);
 
     <span class="kw">let </span>prom_gateway_uri =
         <span class="macro">format!</span>(<span class="string">"{endpoint}/metrics/job/{service_name}/instance/{instance_name}"</span>);
     <span class="kw">loop </span>{
-        tokio::time::sleep(interval).<span class="kw">await</span>;
+        <span class="macro">tokio::select!</span> {
+            biased;
+            () = cancel.cancelled() =&gt; <span class="kw">break</span>,
+            () = tokio::time::sleep(interval) =&gt; {}
+        }
         <span class="kw">let </span>buf = <span class="kw">match </span>registry.encode_openmetrics_to_string() {
             <span class="prelude-val">Ok</span>(buf) =&gt; buf,
             <span class="prelude-val">Err</span>(err) =&gt; {
@@ -587,6 +848,21 @@
             }
         }
     }
+}
+
+<span class="doccomment">/// Builds the default rustls config used when no [`MetricsExporterConfig::tls_config`]
+/// is supplied: the ring crypto provider with the platform certificate verifier.
+</span><span class="kw">fn </span>default_tls_config() -&gt; rustls::ClientConfig {
+    <span class="kw">let </span>provider = Arc::new(rustls::crypto::ring::default_provider());
+    rustls::ClientConfig::builder_with_provider(provider.clone())
+        .with_safe_default_protocol_versions()
+        .expect(<span class="string">"no TLS 1.3 support in ring"</span>)
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(
+            rustls_platform_verifier::Verifier::new(provider)
+                .expect(<span class="string">"rustls platform verifier incompatible with ring"</span>),
+        ))
+        .with_no_client_auth()
 }
 
 <span class="doccomment">/// HTTP handler that responds with the OpenMetrics encoding of the metrics.
@@ -648,7 +924,7 @@
 }
 
 <span class="doccomment">/// Configuration for pushing metrics to a remote endpoint.
-</span><span class="attr">#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
+</span><span class="attr">#[derive(Debug, Default, serde::Deserialize, Clone)]
 </span><span class="kw">pub struct </span>MetricsExporterConfig {
     <span class="doccomment">/// The push interval.
     </span><span class="kw">pub </span>interval: Duration,
@@ -675,5 +951,147 @@
     </span><span class="kw">pub </span>username: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The password for basic auth for the push metrics collector.
     </span><span class="kw">pub </span>password: String,
+    <span class="doccomment">/// Custom rustls [`ClientConfig`] for the push client.
+    ///
+    /// If `None`, a default config is used: the ring crypto provider with
+    /// the platform certificate verifier.
+    ///
+    /// [`ClientConfig`]: rustls::ClientConfig
+    </span><span class="attr">#[serde(skip)]
+    </span><span class="kw">pub </span>tls_config: <span class="prelude-ty">Option</span>&lt;rustls::ClientConfig&gt;,
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::sync::Arc;
+
+    <span class="kw">use </span>tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use crate</span>::{Counter, Registry};
+
+    <span class="attr">#[derive(Debug, <span class="kw">crate</span>::MetricsGroup)]
+    #[metrics(default, name = <span class="string">"test"</span>)]
+    </span><span class="kw">struct </span>TestMetrics {
+        <span class="doccomment">/// Smoke test counter
+        </span>count: Counter,
+    }
+
+    <span class="kw">fn </span>registry() -&gt; Arc&lt;Registry&gt; {
+        <span class="kw">let </span>metrics = Arc::new(TestMetrics::default());
+        metrics.count.inc_by(<span class="number">7</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>reg = Registry::default();
+        reg.register(metrics);
+        Arc::new(reg)
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>smoke_metrics_server() {
+        <span class="kw">let </span>server = MetricsServer::spawn(<span class="string">"127.0.0.1:0"</span>.parse().unwrap(), registry())
+            .<span class="kw">await
+            </span>.unwrap();
+        <span class="kw">let </span>addr = server.local_addr();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>stream = tokio::net::TcpStream::connect(addr).<span class="kw">await</span>.unwrap();
+        stream
+            .write_all(<span class="string">b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"</span>)
+            .<span class="kw">await
+            </span>.unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>response = Vec::new();
+        stream.read_to_end(<span class="kw-2">&amp;mut </span>response).<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>response = String::from_utf8(response).unwrap();
+
+        <span class="macro">assert!</span>(response.starts_with(<span class="string">"HTTP/1.1 200"</span>), <span class="string">"response: {response}"</span>);
+        <span class="macro">assert!</span>(
+            response.contains(<span class="string">"test_count_total 7"</span>),
+            <span class="string">"response: {response}"
+        </span>);
+
+        server.shutdown().<span class="kw">await</span>;
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>smoke_metrics_dumper() {
+        <span class="kw">let </span>path = std::env::temp_dir().join(<span class="macro">format!</span>(
+            <span class="string">"iroh-metrics-smoke-dumper-{}.csv"</span>,
+            std::process::id()
+        ));
+        <span class="kw">let _ </span>= std::fs::remove_file(<span class="kw-2">&amp;</span>path);
+
+        <span class="kw">let </span>dumper = MetricsDumper::spawn(path.clone(), Duration::from_millis(<span class="number">50</span>), registry())
+            .<span class="kw">await
+            </span>.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">200</span>)).<span class="kw">await</span>;
+        dumper.shutdown().<span class="kw">await</span>;
+
+        <span class="kw">let </span>contents = std::fs::read_to_string(<span class="kw-2">&amp;</span>path).unwrap();
+        <span class="kw">let _ </span>= std::fs::remove_file(<span class="kw-2">&amp;</span>path);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>lines = contents.lines();
+        <span class="kw">let </span>header = lines.next().expect(<span class="string">"header line"</span>);
+        <span class="macro">assert!</span>(header.starts_with(<span class="string">"time"</span>), <span class="string">"header: {header}"</span>);
+        <span class="macro">assert!</span>(header.contains(<span class="string">"test_count"</span>), <span class="string">"header: {header}"</span>);
+        <span class="kw">let </span>row = lines.next().expect(<span class="string">"at least one data row"</span>);
+        <span class="macro">assert!</span>(row.contains(<span class="string">"7.000"</span>), <span class="string">"row: {row}"</span>);
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>smoke_metrics_push_exporter() {
+        <span class="kw">use </span>std::sync::Mutex;
+
+        <span class="kw">use </span>http_body_util::{BodyExt, Full};
+        <span class="kw">use </span>hyper::{Request, Response, body::Incoming, service::service_fn};
+        <span class="kw">use </span>hyper_util::rt::TokioIo;
+
+        <span class="kw">let </span>listener = tokio::net::TcpListener::bind(<span class="string">"127.0.0.1:0"</span>).<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>addr = listener.local_addr().unwrap();
+        <span class="kw">let </span>(tx, rx) = tokio::sync::oneshot::channel::&lt;(String, String)&gt;();
+        <span class="kw">let </span>tx = Arc::new(Mutex::new(<span class="prelude-val">Some</span>(tx)));
+
+        tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>(stream, <span class="kw">_</span>) = listener.accept().<span class="kw">await</span>.unwrap();
+            <span class="kw">let </span>io = TokioIo::new(stream);
+            <span class="kw">let </span>service = service_fn(<span class="kw">move </span>|req: Request&lt;Incoming&gt;| {
+                <span class="kw">let </span>tx = tx.clone();
+                <span class="kw">async move </span>{
+                    <span class="kw">let </span>path = req.uri().path().to_string();
+                    <span class="kw">let </span>body = req.into_body().collect().<span class="kw">await</span>.unwrap().to_bytes();
+                    <span class="kw">let </span>body = String::from_utf8_lossy(<span class="kw-2">&amp;</span>body).to_string();
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(tx) = tx.lock().expect(<span class="string">"poisoned"</span>).take() {
+                        <span class="kw">let _ </span>= tx.send((path, body));
+                    }
+                    <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, std::convert::Infallible&gt;(Response::new(Full::new(
+                        hyper::body::Bytes::new(),
+                    )))
+                }
+            });
+            <span class="kw">let _ </span>= hyper::server::conn::http1::Builder::new()
+                .serve_connection(io, service)
+                .<span class="kw">await</span>;
+        });
+
+        <span class="kw">let </span>cfg = MetricsExporterConfig {
+            interval: Duration::from_millis(<span class="number">50</span>),
+            endpoint: <span class="macro">format!</span>(<span class="string">"http://{addr}"</span>),
+            service_name: <span class="string">"svc"</span>.to_string(),
+            instance_name: <span class="string">"inst"</span>.to_string(),
+            username: <span class="prelude-val">None</span>,
+            password: String::new(),
+            tls_config: <span class="prelude-val">None</span>,
+        };
+
+        <span class="kw">let </span>exporter = MetricsPushExporter::spawn(cfg, registry());
+
+        <span class="kw">let </span>(path, body) = tokio::time::timeout(Duration::from_secs(<span class="number">5</span>), rx)
+            .<span class="kw">await
+            </span>.expect(<span class="string">"timeout waiting for push"</span>)
+            .expect(<span class="string">"oneshot dropped"</span>);
+
+        <span class="macro">assert_eq!</span>(path, <span class="string">"/metrics/job/svc/instance/inst"</span>);
+        <span class="macro">assert!</span>(body.contains(<span class="string">"test_count_total 7"</span>), <span class="string">"body: {body}"</span>);
+
+        exporter.shutdown().<span class="kw">await</span>;
+    }
 }
 </code></pre></div></section></main></body></html>

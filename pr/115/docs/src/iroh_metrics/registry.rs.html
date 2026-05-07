@@ -182,7 +182,11 @@
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a></pre></div><pre class="rust"><code><span class="doccomment">//! Registry to register metrics groups and encode them in the OpenMetrics text format.
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a></pre></div><pre class="rust"><code><span class="doccomment">//! Registry to register metrics groups and encode them in the OpenMetrics text format.
 
 </span><span class="kw">use </span>std::{
     borrow::Cow,
@@ -299,25 +303,29 @@
         <span class="self">self</span>.schema_version.load(Ordering::Relaxed)
     }
 
-    <span class="doccomment">/// Encodes the schema of all registered metrics into the provided schema builder.
-    </span><span class="kw">pub fn </span>encode_schema(<span class="kw-2">&amp;</span><span class="self">self</span>, schema: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Schema) {
+    <span class="doccomment">/// Encodes the binary export of all registered metrics.
+    ///
+    /// `schema` is `Some` when the encoder needs a fresh schema this round
+    /// (because `schema_version` changed) and `None` otherwise. Walking
+    /// schema and values together — and per-family under a single read lock —
+    /// keeps the two flat slices aligned even under concurrent
+    /// `Family::get_or_create` from other threads.
+    </span><span class="kw">pub fn </span>encode_schema(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">mut </span>schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Schema&gt;,
+        values: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Values,
+    ) {
         <span class="kw">for </span>group <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.metrics {
-            group.encode_schema(schema, <span class="self">self</span>.prefix.as_deref(), <span class="kw-2">&amp;</span><span class="self">self</span>.labels);
+            group.encode_schema(
+                schema.as_deref_mut(),
+                values,
+                <span class="self">self</span>.prefix.as_deref(),
+                <span class="kw-2">&amp;</span><span class="self">self</span>.labels,
+            );
         }
 
         <span class="kw">for </span>sub <span class="kw">in </span><span class="self">self</span>.sub_registries.iter() {
-            sub.encode_schema(schema);
-        }
-    }
-
-    <span class="doccomment">/// Encodes the current values of all registered metrics into the provided values builder.
-    </span><span class="kw">pub fn </span>encode_values(<span class="kw-2">&amp;</span><span class="self">self</span>, values: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Values) {
-        <span class="kw">for </span>group <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.metrics {
-            group.encode_values(values);
-        }
-
-        <span class="kw">for </span>sub <span class="kw">in </span><span class="self">self</span>.sub_registries.iter() {
-            sub.encode_values(values);
+            sub.encode_schema(schema.as_deref_mut(), values);
         }
     }
 }
