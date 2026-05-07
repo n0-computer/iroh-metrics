@@ -48,7 +48,8 @@ hyper-util = { version = "0.1.17", features = ["tokio"], optional = true }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"], optional = true }
 rustls = { version = "0.23", default-features = false, features = ["ring"], optional = true }
 rustls-platform-verifier = { version = "0.7", optional = true }
-tokio = { version = "1", features = ["rt", "net", "fs"], optional = true }
+tokio = { version = "1", features = ["rt", "net", "fs", "macros"], optional = true }
+tokio-util = { version = "0.7", features = ["rt"], optional = true }
 postcard = { version = "1.1.1", features = ["use-std"] }
 
 [dev-dependencies]
@@ -73,6 +74,7 @@ service = [
     "dep:rustls",
     "dep:rustls-platform-verifier",
     "dep:tokio",
+    "dep:tokio-util",
 ]
 # Enables a global, static metrics collector
 static_core = ["metrics", "dep:erased_set"]

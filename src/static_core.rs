@@ -6,7 +6,9 @@
 //! - To increment a **counter**, use the [`crate::inc`] macro with a value.
 //! - To increment a **counter** by 1, use the [`crate::inc_by`] macro.
 //!
-//! To expose the metrics, start the metrics service with `start_metrics_server()`.
+//! To expose the metrics, start the metrics service with [`MetricsServer::spawn`].
+//!
+//! [`MetricsServer::spawn`]: crate::service::MetricsServer::spawn
 //!
 //! # Example:
 //! ```rust
