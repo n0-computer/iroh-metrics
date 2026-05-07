@@ -2,7 +2,28 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [0.38.3](https://github.com/n0-computer/iroh-metrics/compare/v0.38.2..0.38.3) - 2026-03-10
+## [1.0.0-rc.0](https://github.com/n0-computer/iroh-metrics/compare/v0.38.3..1.0.0-rc.0) - 2026-05-07
+
+### ⛰️  Features
+
+- [**breaking**] Label support ([#75](https://github.com/n0-computer/iroh-metrics/issues/75)) - ([a707629](https://github.com/n0-computer/iroh-metrics/commit/a707629bc14400de6f4f843bf8383dffa8d0262c))
+
+### 🐛 Bug Fixes
+
+- Family export race + OpenMetrics escaping ([#112](https://github.com/n0-computer/iroh-metrics/issues/112)) - ([a1ddc90](https://github.com/n0-computer/iroh-metrics/commit/a1ddc909f7c91b4fe5d803bee91fe6f0efe61ef1))
+
+### 🚜 Refactor
+
+- [**breaking**] Feature-gate postcard ([#113](https://github.com/n0-computer/iroh-metrics/issues/113)) - ([3eccd71](https://github.com/n0-computer/iroh-metrics/commit/3eccd71b27d0c3129ab257b05817315c720c598e))
+- [**breaking**] Expose the services as structs that abort on drop ([#115](https://github.com/n0-computer/iroh-metrics/issues/115)) - ([731a572](https://github.com/n0-computer/iroh-metrics/commit/731a572119c0fcb05d5131f06597de36594e3c1e))
+
+### ⚙️ Miscellaneous Tasks
+
+- Update deps ([#103](https://github.com/n0-computer/iroh-metrics/issues/103)) - ([c155cb8](https://github.com/n0-computer/iroh-metrics/commit/c155cb8876e0382930ec5d7f4528289263d54a43))
+- Update deps ([#111](https://github.com/n0-computer/iroh-metrics/issues/111)) - ([09be0a4](https://github.com/n0-computer/iroh-metrics/commit/09be0a4327eef90e285dd86b0b60c0e058128f87))
+- Fixup doc links - ([40431ea](https://github.com/n0-computer/iroh-metrics/commit/40431ea4fae044c53518b698287ffefb3bb121b1))
+
+## [0.38.3](https://github.com/n0-computer/iroh-metrics/compare/v0.38.2..v0.38.3) - 2026-03-10
 
 ### 🐛 Bug Fixes
 
@@ -11,6 +32,7 @@ All notable changes to iroh will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Update deps ([#98](https://github.com/n0-computer/iroh-metrics/issues/98)) - ([c454cb2](https://github.com/n0-computer/iroh-metrics/commit/c454cb2a04f1889b6872f5956ea7adfeacd04484))
+- Release - ([efc67d1](https://github.com/n0-computer/iroh-metrics/commit/efc67d1b748c53374f279883debe9f954fb03916))
 
 ### Deps
 
