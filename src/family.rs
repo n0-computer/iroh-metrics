@@ -847,4 +847,157 @@ mod tests {
             "raw newline must be escaped: {out}",
         );
     }
+
+    #[test]
+    fn export_after_mid_walk_insert_keeps_schema_aligned() {
+        // Regression for the version-tracking race in `Encoder::export`:
+        // advancing `last_schema_version` to the *post-walk* version
+        // can outrun the schema we actually built. The next round then
+        // skips publishing a schema while the values list has grown,
+        // leaving the decoder one entry behind for every later item.
+        //
+        // The race is reproduced deterministically with a custom
+        // `FamilyEncoder` wrapper that fires a side effect right before
+        // walking its own entries — equivalent to another thread calling
+        // `get_or_create` between two families' walks within a single
+        // export pass.
+        use std::sync::Mutex;
+
+        use crate::{
+            FamilyItem, MetricItem, MetricsGroup, MetricsSource, Registry,
+            encoding::{Decoder, Encoder, Schema, Values},
+            iterable::Iterable,
+        };
+
+        struct TriggerFamily {
+            inner: Family<TestLabels, Counter>,
+            before_walk: Mutex<Option<Box<dyn FnOnce() + Send>>>,
+        }
+
+        impl fmt::Debug for TriggerFamily {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_struct("TriggerFamily").finish_non_exhaustive()
+            }
+        }
+
+        impl FamilyEncoder for TriggerFamily {
+            fn encode_openmetrics(
+                &self,
+                writer: &mut dyn Write,
+                name: &str,
+                help: &str,
+                prefixes: &[&str],
+                registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+            ) -> fmt::Result {
+                self.inner
+                    .encode_openmetrics(writer, name, help, prefixes, registry_labels)
+            }
+            fn encode_schema(
+                &self,
+                schema: Option<&mut Schema>,
+                values: &mut Values,
+                name: &str,
+                help: &str,
+                prefixes: &[&str],
+                registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+            ) {
+                if let Some(f) = self.before_walk.lock().unwrap().take() {
+                    f();
+                }
+                self.inner
+                    .encode_schema(schema, values, name, help, prefixes, registry_labels);
+            }
+            fn is_empty(&self) -> bool {
+                self.inner.is_empty()
+            }
+            fn attach_schema_version(&self, version: Arc<AtomicU64>) {
+                self.inner.attach_schema_version(version);
+            }
+        }
+
+        #[derive(Debug)]
+        struct M {
+            a: Family<TestLabels, Counter>,
+            b: TriggerFamily,
+        }
+
+        impl Iterable for M {
+            fn metric_field_count(&self) -> usize {
+                0
+            }
+            fn metric_field_ref(&self, _: usize) -> Option<MetricItem<'_>> {
+                None
+            }
+            fn family_field_count(&self) -> usize {
+                2
+            }
+            fn family_field_ref(&self, n: usize) -> Option<FamilyItem<'_>> {
+                match n {
+                    0 => Some(FamilyItem::new("a", "a help", &self.a)),
+                    1 => Some(FamilyItem::new("b", "b help", &self.b)),
+                    _ => None,
+                }
+            }
+        }
+        impl MetricsGroup for M {
+            fn name(&self) -> &'static str {
+                "race"
+            }
+        }
+
+        let metrics = Arc::new(M {
+            a: Family::new(),
+            b: TriggerFamily {
+                inner: Family::new(),
+                before_walk: Mutex::new(None),
+            },
+        });
+        metrics.a.get_or_create(&labels("GET", 200)).inc();
+        metrics.b.inner.get_or_create(&labels("GET", 200)).inc();
+
+        let mut registry = Registry::default();
+        registry.register(metrics.clone());
+        let registry = Arc::new(std::sync::RwLock::new(registry));
+
+        // Round 1: initial schema + values published.
+        let mut encoder = Encoder::new(registry.clone());
+        let mut decoder = Decoder::default();
+        decoder
+            .import_bytes(&encoder.export_bytes().unwrap())
+            .unwrap();
+        assert_eq!(
+            decoder.encode_openmetrics_to_string().unwrap(),
+            registry.encode_openmetrics_to_string().unwrap(),
+        );
+
+        // Round 2: arm the trigger so a new entry lands in family A
+        // *between* A's and B's walks. The schema captured this round
+        // does NOT include the new entry (A was already walked) but
+        // `schema_version` is bumped, so this round's update still
+        // attaches the (pre-insert) schema. That is fine on its own.
+        let metrics_clone = metrics.clone();
+        *metrics.b.before_walk.lock().unwrap() = Some(Box::new(move || {
+            metrics_clone.a.get_or_create(&labels("POST", 201)).inc();
+        }));
+        decoder
+            .import_bytes(&encoder.export_bytes().unwrap())
+            .unwrap();
+
+        // Round 3: no further mutation. The walk now sees the POST entry
+        // in A, so the values list grows by one. The fix must republish
+        // the schema this round (because last round's schema captured
+        // a state that did NOT include POST). With the buggy
+        // `last_schema_version = end_version`, schema_version equals
+        // last_seen and no schema is sent — the decoder is left aligned
+        // against last round's schema while the values list has grown.
+        decoder
+            .import_bytes(&encoder.export_bytes().unwrap())
+            .unwrap();
+        assert_eq!(
+            decoder.encode_openmetrics_to_string().unwrap(),
+            registry.encode_openmetrics_to_string().unwrap(),
+            "decoder went out of sync after a mid-walk insert: \
+             schema was not re-published when needed",
+        );
+    }
 }
