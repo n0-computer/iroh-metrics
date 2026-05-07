@@ -114,6 +114,7 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    #[cfg(feature = "postcard")]
     use std::sync::RwLock;
 
     use serde::{Deserialize, Serialize};
@@ -121,9 +122,11 @@ mod tests {
     use super::*;
     use crate::{
         Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
-        encoding::{Decoder, Encoder},
         iterable::Iterable,
     };
+
+    #[cfg(feature = "postcard")]
+    use crate::encoding::{Decoder, Encoder};
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
     pub struct FooMetrics {
@@ -566,6 +569,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_histogram_encode_decode() {
         use std::sync::{Arc, RwLock};
 
@@ -650,6 +654,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_histogram_openmetrics_from_decoder() {
         use std::sync::{Arc, RwLock};
 
