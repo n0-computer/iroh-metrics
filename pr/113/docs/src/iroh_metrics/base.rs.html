@@ -891,7 +891,8 @@
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
 
 <span class="kw">use crate</span>::{
     Metric, MetricType, MetricValue,
@@ -1284,6 +1285,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">fn </span>test_encode_decode() {
         <span class="kw">let </span><span class="kw-2">mut </span>registry = Registry::default();
         <span class="kw">let </span>metrics = Arc::new(FooMetrics::default());
