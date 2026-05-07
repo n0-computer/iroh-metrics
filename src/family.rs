@@ -1,0 +1,773 @@
+//! Metric families with labels.
+//!
+//! A [`Family`] is a collection of metrics indexed by label sets. Labels
+//! should be low cardinality: each unique combination becomes a separate
+//! timeseries on the backend, and the internal map grows without bound.
+
+#[cfg(feature = "metrics")]
+use std::collections::HashMap;
+#[cfg(feature = "metrics")]
+use std::sync::{OnceLock, RwLock};
+use std::{
+    borrow::Cow,
+    fmt::{self, Write},
+    sync::Arc,
+};
+
+use portable_atomic::AtomicU64;
+#[cfg(feature = "metrics")]
+use portable_atomic::Ordering;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+#[cfg(feature = "metrics")]
+use crate::MetricValue;
+#[cfg(feature = "metrics")]
+use crate::encoding::{ItemSchema, encode_help_text, encode_metric_value, encode_prefix_name};
+use crate::{
+    Metric,
+    encoding::{Schema, Values},
+    labels::EncodeLabelSet,
+};
+
+/// Type-erased encoding interface for a [`Family`].
+///
+/// `Family<L, M>` is generic in both label and metric type. This trait
+/// collapses those generics so a metrics group containing multiple families
+/// can iterate them as `&dyn FamilyEncoder`.
+pub trait FamilyEncoder: Send + Sync + 'static {
+    /// Encodes to OpenMetrics text format.
+    fn encode_openmetrics(
+        &self,
+        writer: &mut dyn Write,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) -> fmt::Result;
+
+    /// Encodes schema for binary encoding.
+    fn encode_schema(
+        &self,
+        schema: &mut Schema,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    );
+
+    /// Encodes values for binary encoding. Order must match `encode_schema`.
+    fn encode_values(&self, values: &mut Values);
+
+    /// Returns true if the family has no entries.
+    fn is_empty(&self) -> bool;
+
+    /// Wires this family up to a registry's schema-version counter.
+    ///
+    /// Called by the registry when the parent metrics group is registered, so
+    /// that adding a new label combination (a new entry to the family) bumps
+    /// the version and re-publishes the schema on the next binary export.
+    fn attach_schema_version(&self, version: Arc<AtomicU64>);
+}
+
+/// A family metric item for iteration.
+#[derive(Clone, Copy)]
+pub struct FamilyItem<'a> {
+    pub(crate) name: &'static str,
+    pub(crate) help: &'static str,
+    pub(crate) family: &'a dyn FamilyEncoder,
+}
+
+impl fmt::Debug for FamilyItem<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FamilyItem")
+            .field("name", &self.name)
+            .field("help", &self.help)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'a> FamilyItem<'a> {
+    /// Creates a new family item.
+    pub fn new(name: &'static str, help: &'static str, family: &'a dyn FamilyEncoder) -> Self {
+        Self { name, help, family }
+    }
+
+    /// Returns the name of this family.
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the help text of this family.
+    pub fn help(&self) -> &'static str {
+        self.help
+    }
+
+    /// Returns true if the family has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.family.is_empty()
+    }
+
+    /// Encodes to OpenMetrics text format.
+    pub fn encode_openmetrics(
+        &self,
+        writer: &mut dyn fmt::Write,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) -> fmt::Result {
+        self.family
+            .encode_openmetrics(writer, self.name, self.help, prefixes, registry_labels)
+    }
+
+    /// Encodes schema for binary encoding.
+    pub fn encode_schema(
+        &self,
+        schema: &mut Schema,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
+        self.family
+            .encode_schema(schema, self.name, self.help, prefixes, registry_labels);
+    }
+
+    /// Encodes values for binary encoding.
+    pub fn encode_values(&self, values: &mut Values) {
+        self.family.encode_values(values);
+    }
+
+    /// Attaches a schema-version counter to the underlying family.
+    ///
+    /// Used by [`Registry::register`](crate::Registry::register) to wire
+    /// every family in a metrics group up to the registry's version counter
+    /// so that adding a new label combination invalidates the cached schema.
+    pub fn attach_schema_version(&self, version: Arc<AtomicU64>) {
+        self.family.attach_schema_version(version);
+    }
+}
+
+#[cfg(feature = "metrics")]
+type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
+
+/// A family of metrics indexed by labels.
+///
+/// Thread-safe: multiple threads can look up or create metrics concurrently.
+/// Each metric is reference-counted so it can be used independently after lookup.
+#[cfg(feature = "metrics")]
+pub struct Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    inner: Arc<RwLock<HashMap<L, Arc<M>>>>,
+    constructor: Constructor<M>,
+    // Set once when the parent group is registered. Bumped on each new label
+    // combo so the binary encoder re-publishes the schema.
+    //
+    // Why `Arc<OnceLock<Arc<AtomicU64>>>` and not just `Arc<AtomicU64>`?
+    // - The counter is owned by the registry; a `Family` constructed inside a
+    //   user struct does not know about it until `Registry::register` walks
+    //   the group's families and attaches it. `OnceLock` lets us bind it
+    //   exactly once after construction without introducing a `Mutex`.
+    // - The outer `Arc` keeps that "attached" state shared between any
+    //   `Family::clone` instances (the `RwLock<HashMap>` is shared too, so
+    //   inserts on a clone must bump the same counter).
+    schema_version: Arc<OnceLock<Arc<AtomicU64>>>,
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    /// Creates a new family using `M::default()` for new metrics.
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+            constructor: Arc::new(M::default),
+            schema_version: Arc::new(OnceLock::new()),
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> Default for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    /// Creates a new family with a custom constructor (useful for Histogram buckets).
+    pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+            constructor: Arc::new(constructor),
+            schema_version: Arc::new(OnceLock::new()),
+        }
+    }
+
+    /// Gets or creates a metric for the given labels.
+    ///
+    /// Each call performs a `HashMap` lookup under a read lock. For hot paths
+    /// where the label set is stable, hold on to the returned `Arc<M>` and
+    /// reuse it instead of calling `get_or_create` on every record.
+    pub fn get_or_create(&self, labels: &L) -> Arc<M> {
+        if let Some(metric) = self.inner.read().expect("poisoned").get(labels) {
+            return Arc::clone(metric);
+        }
+
+        let mut guard = self.inner.write().expect("poisoned");
+        if let Some(metric) = guard.get(labels) {
+            return Arc::clone(metric);
+        }
+
+        let metric = Arc::new((self.constructor)());
+        guard.insert(labels.clone(), Arc::clone(&metric));
+        if let Some(v) = self.schema_version.get() {
+            v.fetch_add(1, Ordering::Relaxed);
+        }
+        metric
+    }
+
+    /// Looks up an existing metric without creating one. Read-only fast path.
+    pub fn get(&self, labels: &L) -> Option<Arc<M>> {
+        self.inner
+            .read()
+            .expect("poisoned")
+            .get(labels)
+            .map(Arc::clone)
+    }
+
+    /// Removes the metric for the given labels.
+    pub fn remove(&self, labels: &L) -> Option<Arc<M>> {
+        self.inner.write().expect("poisoned").remove(labels)
+    }
+
+    /// Removes all metrics.
+    pub fn clear(&self) {
+        self.inner.write().expect("poisoned").clear();
+    }
+
+    /// Returns the number of label combinations tracked.
+    pub fn len(&self) -> usize {
+        self.inner.read().expect("poisoned").len()
+    }
+
+    /// Returns true if empty.
+    pub fn is_empty(&self) -> bool {
+        self.inner.read().expect("poisoned").is_empty()
+    }
+}
+
+/// A family of metrics indexed by labels (no-op when metrics disabled).
+#[cfg(not(feature = "metrics"))]
+pub struct Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    /// Shared no-op / placeholder metric returned by all `get_or_create` calls when metrics are disabled.
+    default_metric: Arc<M>,
+    _labels: std::marker::PhantomData<L>,
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    /// Creates a new family using `M::default()` for new metrics.
+    pub fn new() -> Self {
+        Self {
+            default_metric: Arc::new(M::default()),
+            _labels: std::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Default for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric + Default + 'static,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    /// Creates a new family with a custom constructor (useful for Histogram buckets).
+    pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
+        Self {
+            default_metric: Arc::new(constructor()),
+            _labels: std::marker::PhantomData,
+        }
+    }
+
+    /// Gets or creates a metric for the given labels (returns default metric).
+    pub fn get_or_create(&self, _labels: &L) -> Arc<M> {
+        Arc::clone(&self.default_metric)
+    }
+
+    /// Looks up an existing metric without creating one (always returns `None`).
+    pub fn get(&self, _labels: &L) -> Option<Arc<M>> {
+        None
+    }
+
+    /// Removes the metric for the given labels (no-op).
+    pub fn remove(&self, _labels: &L) -> Option<Arc<M>> {
+        None
+    }
+
+    /// Removes all metrics (no-op).
+    pub fn clear(&self) {}
+
+    /// Returns the number of label combinations tracked.
+    pub fn len(&self) -> usize {
+        0
+    }
+
+    /// Returns true if empty.
+    pub fn is_empty(&self) -> bool {
+        true
+    }
+}
+
+// ============================================================================
+// Trait impls: metrics ENABLED
+// ============================================================================
+
+#[cfg(feature = "metrics")]
+impl<L, M> Clone for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            constructor: Arc::clone(&self.constructor),
+            schema_version: Arc::clone(&self.schema_version),
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> FamilyEncoder for Family<L, M>
+where
+    L: EncodeLabelSet + Ord,
+    M: Metric + 'static,
+{
+    fn encode_openmetrics(
+        &self,
+        writer: &mut dyn Write,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) -> fmt::Result {
+        let guard = self.inner.read().expect("poisoned");
+        if guard.is_empty() {
+            return Ok(());
+        }
+
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        let metric_type = entries[0].1.r#type();
+
+        writer.write_str("# HELP ")?;
+        encode_prefix_name(writer, prefixes, name)?;
+        writer.write_str(" ")?;
+        encode_help_text(writer, help)?;
+
+        writer.write_str("# TYPE ")?;
+        encode_prefix_name(writer, prefixes, name)?;
+        writeln!(writer, " {}", metric_type.as_str())?;
+
+        for (label_set, metric) in entries {
+            let pairs = label_set.encode_label_pairs();
+            encode_metric_value(
+                writer,
+                name,
+                prefixes,
+                registry_labels,
+                &pairs,
+                &metric.value(),
+            )?;
+        }
+        Ok(())
+    }
+
+    fn encode_schema(
+        &self,
+        schema: &mut Schema,
+        name: &str,
+        help: &str,
+        prefixes: &[&str],
+        registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
+        let guard = self.inner.read().expect("poisoned");
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        for (labels, metric) in entries {
+            let pairs = labels.encode_label_pairs();
+            let all_labels = registry_labels
+                .iter()
+                .map(|(k, v)| (k.as_ref(), v.as_ref().into()))
+                .chain(pairs.iter().map(|(k, v)| (*k, v.as_str())));
+            schema.push(
+                ItemSchema::from_label_iter(name, prefixes, all_labels, metric.r#type()),
+                help,
+            );
+        }
+    }
+
+    fn encode_values(&self, values: &mut Values) {
+        let guard = self.inner.read().expect("poisoned");
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        for (_, metric) in entries {
+            values.items.push(metric.value());
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        Family::is_empty(self)
+    }
+
+    fn attach_schema_version(&self, version: Arc<AtomicU64>) {
+        let _ = self.schema_version.set(version);
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> fmt::Debug for Family<L, M>
+where
+    L: EncodeLabelSet + fmt::Debug,
+    M: Metric,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let guard = self.inner.read().expect("poisoned");
+        f.debug_struct("Family")
+            .field("len", &guard.len())
+            .field("labels", &guard.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<L, M> Serialize for Family<L, M>
+where
+    L: EncodeLabelSet + Serialize + Ord,
+    M: Metric,
+{
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+
+        let guard = self.inner.read().expect("poisoned");
+        let mut entries: Vec<_> = guard.iter().collect();
+        entries.sort_by_key(|(a, _)| *a);
+
+        let mut seq = serializer.serialize_seq(Some(entries.len()))?;
+        for (labels, metric) in entries {
+            seq.serialize_element(&(labels, metric.value()))?;
+        }
+        seq.end()
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl<'de, L, M> Deserialize<'de> for Family<L, M>
+where
+    L: EncodeLabelSet + Deserialize<'de>,
+    M: Metric + Default + 'static,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let entries: Vec<(L, MetricValue)> = Vec::deserialize(deserializer)?;
+        let family = Family::new();
+        {
+            let mut guard = family.inner.write().expect("poisoned");
+            for (labels, value) in entries {
+                let metric = Arc::new(M::default());
+                metric.set_value(value);
+                guard.insert(labels, metric);
+            }
+        }
+        Ok(family)
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Clone for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn clone(&self) -> Self {
+        Self {
+            default_metric: Arc::clone(&self.default_metric),
+            _labels: std::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> FamilyEncoder for Family<L, M>
+where
+    L: EncodeLabelSet + Ord,
+    M: Metric + 'static,
+{
+    fn encode_openmetrics(
+        &self,
+        _writer: &mut dyn Write,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) -> fmt::Result {
+        Ok(())
+    }
+
+    fn encode_schema(
+        &self,
+        _schema: &mut Schema,
+        _name: &str,
+        _help: &str,
+        _prefixes: &[&str],
+        _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
+    ) {
+    }
+
+    fn encode_values(&self, _values: &mut Values) {}
+
+    fn is_empty(&self) -> bool {
+        true
+    }
+
+    fn attach_schema_version(&self, _version: Arc<AtomicU64>) {}
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> fmt::Debug for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Family").field("disabled", &true).finish()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<L, M> Serialize for Family<L, M>
+where
+    L: EncodeLabelSet,
+    M: Metric,
+{
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        serializer.serialize_seq(Some(0))?.end()
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+impl<'de, L, M> Deserialize<'de> for Family<L, M>
+where
+    L: EncodeLabelSet + Deserialize<'de>,
+    M: Metric + Default + 'static,
+{
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Parse and discard the entries — without metrics we don't track them,
+        // but we must consume the wire format so that postcard et al. can
+        // resume reading the next field. `IgnoredAny` is not enough because
+        // postcard's deserializer doesn't implement `deserialize_ignored_any`.
+        let _: Vec<(L, crate::MetricValue)> = Vec::deserialize(deserializer)?;
+        Ok(Family::new())
+    }
+}
+
+#[cfg(all(test, not(feature = "metrics")))]
+mod tests_no_metrics {
+    use std::borrow::Cow;
+
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{Counter, LabelPair};
+
+    #[derive(Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
+    struct TestLabels {
+        method: String,
+    }
+
+    impl EncodeLabelSet for TestLabels {
+        fn encode_label_pairs(&self) -> Vec<LabelPair<'_>> {
+            vec![(
+                "method",
+                crate::LabelValue::Str(Cow::Borrowed(&self.method)),
+            )]
+        }
+    }
+
+    #[test]
+    fn family_serde_roundtrip_no_metrics_feature() {
+        // Serialize as empty (no entries are tracked when metrics are off),
+        // deserialize back, and verify no panic / decode succeeds.
+        let family: Family<TestLabels, Counter> = Family::new();
+        let bytes = postcard::to_stdvec(&family).unwrap();
+        let _decoded: Family<TestLabels, Counter> = postcard::from_bytes(&bytes).unwrap();
+    }
+}
+
+#[cfg(all(test, feature = "metrics"))]
+mod tests {
+    use std::borrow::Cow;
+
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{Counter, Histogram, LabelPair, NoLabels};
+
+    #[derive(Clone, Hash, PartialEq, Eq, Debug, PartialOrd, Ord, Serialize, Deserialize)]
+    struct TestLabels {
+        method: String,
+        status: u16,
+    }
+
+    impl EncodeLabelSet for TestLabels {
+        fn encode_label_pairs(&self) -> Vec<LabelPair<'_>> {
+            vec![
+                (
+                    "method",
+                    crate::LabelValue::Str(Cow::Borrowed(&self.method)),
+                ),
+                ("status", crate::LabelValue::Uint(self.status as u64)),
+            ]
+        }
+    }
+
+    fn labels(method: &str, status: u16) -> TestLabels {
+        TestLabels {
+            method: method.into(),
+            status,
+        }
+    }
+
+    #[test]
+    fn test_family_operations() {
+        // get_or_create returns same metric for same labels
+        let family: Family<TestLabels, Counter> = Family::new();
+        let c1 = family.get_or_create(&labels("GET", 200));
+        c1.inc();
+        let c2 = family.get_or_create(&labels("GET", 200));
+        c2.inc();
+        assert_eq!(c1.get(), 2);
+
+        // different labels get different metrics
+        family.get_or_create(&labels("GET", 404)).inc_by(5);
+        assert_eq!(family.get_or_create(&labels("GET", 404)).get(), 5);
+        assert_eq!(family.len(), 2);
+
+        // remove
+        let removed = family.remove(&labels("GET", 200));
+        assert_eq!(removed.unwrap().get(), 2);
+        assert_eq!(family.len(), 1);
+
+        // clear
+        family.get_or_create(&labels("POST", 200)).inc();
+        family.clear();
+        assert!(family.is_empty());
+
+        // with_constructor for custom metrics
+        let hist_family: Family<NoLabels, Histogram> =
+            Family::with_constructor(|| Histogram::new(vec![1.0, 5.0, 10.0]));
+        hist_family.get_or_create(&NoLabels).observe(2.5);
+        hist_family.get_or_create(&NoLabels).observe(7.5);
+        assert_eq!(hist_family.get_or_create(&NoLabels).count(), 2);
+    }
+
+    #[test]
+    fn test_serde_roundtrip() {
+        let family: Family<TestLabels, Counter> = Family::new();
+        family.get_or_create(&labels("GET", 200)).inc_by(10);
+        family.get_or_create(&labels("POST", 201)).inc_by(5);
+
+        let bytes = postcard::to_stdvec(&family).unwrap();
+        let decoded: Family<TestLabels, Counter> = postcard::from_bytes(&bytes).unwrap();
+
+        assert_eq!(decoded.get_or_create(&labels("GET", 200)).get(), 10);
+        assert_eq!(decoded.get_or_create(&labels("POST", 201)).get(), 5);
+    }
+
+    #[test]
+    fn test_encoding() {
+        let family: Family<TestLabels, Counter> = Family::new();
+        family.get_or_create(&labels("GET", 200)).inc_by(10);
+        family.get_or_create(&labels("POST", 201)).inc_by(5);
+
+        // OpenMetrics without registry labels
+        let mut out = String::new();
+        FamilyEncoder::encode_openmetrics(
+            &family,
+            &mut out,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &[],
+        )
+        .unwrap();
+        assert!(out.contains("# HELP http_requests HTTP requests."));
+        assert!(out.contains("# TYPE http_requests counter"));
+        assert!(out.contains(r#"http_requests_total{method="GET",status="200"} 10"#));
+        assert!(out.contains(r#"http_requests_total{method="POST",status="201"} 5"#));
+
+        // OpenMetrics with registry labels
+        let mut out = String::new();
+        let registry_labels = [(Cow::Borrowed("service"), Cow::Borrowed("api"))];
+        FamilyEncoder::encode_openmetrics(
+            &family,
+            &mut out,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &registry_labels,
+        )
+        .unwrap();
+        assert!(out.contains(r#"http_requests_total{service="api",method="GET",status="200"} 10"#));
+
+        // Binary schema + values
+        let mut schema = Schema::default();
+        FamilyEncoder::encode_schema(
+            &family,
+            &mut schema,
+            "requests",
+            "HTTP requests",
+            &["http"],
+            &[],
+        );
+        assert_eq!(schema.items.len(), 2);
+
+        let mut values = Values::default();
+        FamilyEncoder::encode_values(&family, &mut values);
+        assert_eq!(values.items.len(), 2);
+    }
+}

@@ -3,11 +3,19 @@
 #![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
 
-pub use self::{base::*, metrics::*, registry::*};
+pub use self::{
+    base::*,
+    family::{Family, FamilyEncoder, FamilyItem},
+    labels::*,
+    metrics::*,
+    registry::*,
+};
 
 mod base;
 pub mod encoding;
+mod family;
 pub mod iterable;
+mod labels;
 mod metrics;
 mod registry;
 #[cfg(feature = "service")]
@@ -15,6 +23,43 @@ pub mod service;
 #[cfg(feature = "static_core")]
 pub mod static_core;
 
+/// Derives [`EncodeLabelSet`] for a struct.
+///
+/// Each field becomes a label with the field name as the key.
+/// Use `#[label(name = "custom")]` to customize the label key.
+/// Use `#[label(skip)]` to exclude a field from the label set.
+/// Use `#[label(rename_all = "...")]` on the struct to rename all fields by
+/// case rule. Supported rules: `snake_case`, `camelCase`, `PascalCase`,
+/// `SCREAMING_SNAKE_CASE`, `kebab-case`, `lowercase`, `UPPERCASE`.
+///
+/// Field types must implement [`EncodeLabelValue`]. Out of the box this
+/// covers `String`, `&'static str`, the integer types, and `bool`.
+///
+/// The struct must also derive `Clone`, `Hash`, `PartialEq`, and `Eq`.
+/// To use the label set with [`Family`], also derive `PartialOrd` and `Ord`
+/// (the encoder produces output sorted by label set).
+///
+/// # Example
+///
+/// ```
+/// use iroh_metrics::EncodeLabelSet;
+///
+/// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
+/// #[label(rename_all = "kebab-case")]
+/// struct HttpLabels {
+///     method: String,
+///     #[label(name = "status_code")]
+///     status: u16,
+/// }
+/// ```
+pub use iroh_metrics_derive::EncodeLabelSet;
+/// Derives [`EncodeLabelValue`] for an enum with only unit variants.
+///
+/// Each variant becomes a string label; default casing is `snake_case`.
+/// Use `#[label(rename_all = "...")]` on the enum or `#[label(name = "...")]`
+/// on a variant to customize. See [`macro@EncodeLabelSet`] for the list of
+/// supported `rename_all` values.
+pub use iroh_metrics_derive::EncodeLabelValue;
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -30,9 +75,15 @@ pub mod static_core;
 /// converted to `camel_case` will be used as the return value of the [`MetricsGroup::name`]
 /// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
 ///
-/// It will also generate a [`Iterable`] impl.
+/// It will also generate a [`Iterable`] impl. Fields with the `Family<_, _>`
+/// type are routed through [`Iterable::family_field_ref`] instead of
+/// [`Iterable::metric_field_ref`]. Detection inspects the last segment of
+/// the field type, so `iroh_metrics::Family<L, M>` is recognized but a type
+/// alias is not — annotate the field with `#[metrics(family)]` in that case.
 ///
 /// [`Iterable`]: iterable::Iterable
+/// [`Iterable::metric_field_ref`]: iterable::Iterable::metric_field_ref
+/// [`Iterable::family_field_ref`]: iterable::Iterable::family_field_ref
 pub use iroh_metrics_derive::MetricsGroup;
 /// Derives [`MetricsGroupSet`] for a struct.
 ///

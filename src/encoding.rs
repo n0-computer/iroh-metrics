@@ -10,76 +10,172 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry};
+use crate::{
+    LabelValue, MetricItem, MetricType, MetricValue, MetricsGroup, MetricsSource, RwLockRegistry,
+    iterable::IntoIterable,
+};
 
-pub(crate) fn write_eof(writer: &mut impl Write) -> fmt::Result {
+/// Encodes a label value directly into the writer.
+///
+/// Blanket-implemented for any `AsRef<str>` so existing callers using `&str`,
+/// `String`, or `Cow<str>` continue to work. The dedicated impl for
+/// [`LabelValue`] avoids allocating an intermediate `String` for integer and
+/// boolean variants.
+pub(crate) trait EncodeLabelTo {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result;
+}
+
+impl<T: AsRef<str> + ?Sized> EncodeLabelTo for T {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
+        w.write_str(self.as_ref())
+    }
+}
+
+impl EncodeLabelTo for LabelValue<'_> {
+    fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
+        match self {
+            LabelValue::Str(s) => w.write_str(s),
+            LabelValue::Int(v) => w.write_str(itoa::Buffer::new().format(*v)),
+            LabelValue::Uint(v) => w.write_str(itoa::Buffer::new().format(*v)),
+            LabelValue::Bool(v) => w.write_str(if *v { "true" } else { "false" }),
+        }
+    }
+}
+
+pub(crate) fn encode_eof(writer: &mut impl Write) -> fmt::Result {
     writer.write_str("# EOF\n")
 }
 
-/// Helper function to encode histogram data in OpenMetrics format.
-fn encode_histogram_data<'a>(
-    writer: &mut impl Write,
+/// Encodes a metric value (without HELP/TYPE headers) in OpenMetrics format.
+///
+/// The following suffixes are appended to the metric name per the OpenMetrics spec:
+/// - Counter: `_total` (e.g. `my_counter_total`)
+/// - Gauge: no suffix
+/// - Histogram: `_bucket` (with `le` label), `_sum`, `_count`
+pub(crate) fn encode_metric_value<W, K1, V1, K2, V2>(
+    writer: &mut W,
     name: &str,
     prefixes: &[impl AsRef<str>],
-    labels: &[(&'a str, &'a str)],
-    histogram_data: &HistogramData,
-) -> fmt::Result {
-    // Write buckets
-    for (upper_bound, count) in &histogram_data.buckets {
-        write_prefix_name(writer, prefixes, name)?;
-        writer.write_str("_bucket")?;
-        writer.write_char('{')?;
-        for (i, (key, value)) in labels.iter().enumerate() {
-            if i > 0 {
-                writer.write_char(',')?;
+    labels: &[(K1, V1)],
+    extra_labels: &[(K2, V2)],
+    value: &MetricValue,
+) -> fmt::Result
+where
+    W: Write + ?Sized,
+    K1: AsRef<str>,
+    V1: EncodeLabelTo,
+    K2: AsRef<str>,
+    V2: EncodeLabelTo,
+{
+    match value {
+        MetricValue::Counter(v) => {
+            encode_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_total")?;
+            encode_labels(writer, labels, extra_labels, None)?;
+            writer.write_char(' ')?;
+            encode_u64(writer, *v)?;
+            writer.write_char('\n')?;
+        }
+        MetricValue::Gauge(v) => {
+            encode_prefix_name(writer, prefixes, name)?;
+            encode_labels(writer, labels, extra_labels, None)?;
+            writer.write_char(' ')?;
+            encode_i64(writer, *v)?;
+            writer.write_char('\n')?;
+        }
+        MetricValue::Histogram {
+            buckets,
+            sum,
+            count,
+        } => {
+            for (le, cnt) in buckets {
+                encode_prefix_name(writer, prefixes, name)?;
+                writer.write_str("_bucket")?;
+                encode_labels(writer, labels, extra_labels, Some(*le))?;
+                writer.write_char(' ')?;
+                encode_u64(writer, *cnt)?;
+                writer.write_char('\n')?;
             }
-            writer.write_str(key)?;
-            writer.write_str("=\"")?;
-            writer.write_str(value)?;
-            writer.write_char('"')?;
-        }
-        if !labels.is_empty() {
-            writer.write_char(',')?;
-        }
-        writer.write_str("le=\"")?;
-        if *upper_bound == f64::INFINITY {
-            writer.write_str("+Inf")?;
-        } else {
-            writer.write_str(ryu::Buffer::new().format(*upper_bound))?;
-        }
-        writer.write_str("\"} ")?;
-        encode_u64(writer, *count)?;
-        writer.write_str("\n")?;
-    }
 
-    // Write sum
-    write_prefix_name(writer, prefixes, name)?;
-    writer.write_str("_sum")?;
-    if !labels.is_empty() {
-        write_labels(writer, labels.iter().copied())?;
-    }
-    writer.write_char(' ')?;
-    encode_f64(writer, histogram_data.sum)?;
-    writer.write_str("\n")?;
+            encode_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_sum")?;
+            encode_labels(writer, labels, extra_labels, None)?;
+            writer.write_char(' ')?;
+            encode_f64(writer, *sum)?;
+            writer.write_char('\n')?;
 
-    // Write count
-    write_prefix_name(writer, prefixes, name)?;
-    writer.write_str("_count")?;
-    if !labels.is_empty() {
-        write_labels(writer, labels.iter().copied())?;
+            encode_prefix_name(writer, prefixes, name)?;
+            writer.write_str("_count")?;
+            encode_labels(writer, labels, extra_labels, None)?;
+            writer.write_char(' ')?;
+            encode_u64(writer, *count)?;
+            writer.write_char('\n')?;
+        }
     }
-    writer.write_char(' ')?;
-    encode_u64(writer, histogram_data.count)?;
-    writer.write_str("\n")?;
-
     Ok(())
+}
+
+fn encode_labels<W, K1, V1, K2, V2>(
+    w: &mut W,
+    labels: &[(K1, V1)],
+    extra_labels: &[(K2, V2)],
+    le: Option<f64>,
+) -> fmt::Result
+where
+    W: Write + ?Sized,
+    K1: AsRef<str>,
+    V1: EncodeLabelTo,
+    K2: AsRef<str>,
+    V2: EncodeLabelTo,
+{
+    if labels.is_empty() && extra_labels.is_empty() && le.is_none() {
+        return Ok(());
+    }
+
+    w.write_char('{')?;
+    let mut first = true;
+
+    for (k, v) in labels {
+        if !first {
+            w.write_char(',')?;
+        }
+        w.write_str(k.as_ref())?;
+        w.write_str("=\"")?;
+        v.encode_to(w)?;
+        w.write_char('"')?;
+        first = false;
+    }
+
+    for (k, v) in extra_labels {
+        if !first {
+            w.write_char(',')?;
+        }
+        w.write_str(k.as_ref())?;
+        w.write_str("=\"")?;
+        v.encode_to(w)?;
+        w.write_char('"')?;
+        first = false;
+    }
+
+    if let Some(le) = le {
+        if !first {
+            w.write_char(',')?;
+        }
+        if le.is_infinite() {
+            w.write_str("le=\"+Inf\"")?;
+        } else {
+            write!(w, "le=\"{}\"", ryu::Buffer::new().format(le))?;
+        }
+    }
+
+    w.write_char('}')
 }
 
 /// Writes `# EOF\n` to `writer`.
 ///
 /// This is the expected last characters of an OpenMetrics string.
 pub fn encode_openmetrics_eof(writer: &mut impl Write) -> fmt::Result {
-    write_eof(writer)
+    encode_eof(writer)
 }
 
 /// Schema information for a single metric item.
@@ -99,6 +195,48 @@ pub struct ItemSchema {
 }
 
 impl ItemSchema {
+    /// Creates a new schema item from the given metadata.
+    pub fn new<K, V>(
+        name: &str,
+        prefixes: &[impl AsRef<str>],
+        labels: &[(K, V)],
+        metric_type: MetricType,
+    ) -> Self
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
+    {
+        Self::from_label_iter(
+            name,
+            prefixes,
+            labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref())),
+            metric_type,
+        )
+    }
+
+    /// Creates a new schema item from a label iterator (avoids materializing a slice).
+    pub fn from_label_iter<'a, I, K, V>(
+        name: &str,
+        prefixes: &[impl AsRef<str>],
+        labels: I,
+        metric_type: MetricType,
+    ) -> Self
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: AsRef<str> + 'a,
+        V: AsRef<str> + 'a,
+    {
+        Self {
+            name: name.to_string(),
+            prefixes: prefixes.iter().map(|s| s.as_ref().to_string()).collect(),
+            labels: labels
+                .into_iter()
+                .map(|(k, v)| (k.as_ref().to_string(), v.as_ref().to_string()))
+                .collect(),
+            r#type: metric_type,
+        }
+    }
+
     /// Returns the name prefixed with all prefixes.
     pub fn prefixed_name(&self) -> String {
         let mut out = String::new();
@@ -123,6 +261,14 @@ pub struct Schema {
 }
 
 impl Schema {
+    /// Pushes a schema item and its help text.
+    pub fn push(&mut self, item: ItemSchema, help: &str) {
+        self.items.push(item);
+        if let Some(h) = self.help.as_mut() {
+            h.push(help.to_string());
+        }
+    }
+
     /// Creates a new [`Schema`] that does not track help text.
     pub fn new_without_help() -> Self {
         Self {
@@ -210,6 +356,10 @@ impl Item<'_> {
     /// Encodes this metric item to OpenMetrics format.
     ///
     /// Writes the metric in OpenMetrics text format to the provided writer.
+    /// Always includes `# HELP` and `# TYPE` headers — if you are iterating
+    /// items yourself across a family of metrics, prefer
+    /// [`MetricsSource::encode_openmetrics`](crate::MetricsSource::encode_openmetrics)
+    /// on the [`Decoder`], which deduplicates headers across same-named items.
     pub fn encode_openmetrics(
         &self,
         writer: &mut impl std::fmt::Write,
@@ -224,6 +374,45 @@ impl Item<'_> {
                 .map(|(a, b)| (a.as_str(), b.as_str())),
         )?;
         Ok(())
+    }
+
+    /// Writes only the `# HELP` and `# TYPE` headers for this item.
+    pub(crate) fn encode_openmetrics_header(
+        &self,
+        writer: &mut impl std::fmt::Write,
+    ) -> fmt::Result {
+        writer.write_str("# HELP ")?;
+        encode_prefix_name(writer, &self.schema.prefixes, &self.schema.name)?;
+        writer.write_str(" ")?;
+        encode_help_text(writer, self.help.map(|x| x.as_str()).unwrap_or_default())?;
+
+        writer.write_str("# TYPE ")?;
+        encode_prefix_name(writer, &self.schema.prefixes, &self.schema.name)?;
+        writer.write_str(" ")?;
+        writer.write_str(self.schema.r#type.as_str())?;
+        writer.write_str("\n")
+    }
+
+    /// Writes only the value line(s) for this item, without `# HELP`/`# TYPE`.
+    pub(crate) fn encode_openmetrics_value(
+        &self,
+        writer: &mut impl std::fmt::Write,
+    ) -> fmt::Result {
+        let labels: Vec<_> = self
+            .schema
+            .labels
+            .iter()
+            .map(|(a, b)| (a.as_str(), b.as_str()))
+            .collect();
+        let empty: &[(&str, &str)] = &[];
+        encode_metric_value(
+            writer,
+            &self.schema.name,
+            &self.schema.prefixes,
+            &labels,
+            empty,
+            self.value,
+        )
     }
 }
 
@@ -302,10 +491,20 @@ impl<'a> Iterator for DecoderIter<'a> {
 
 impl MetricsSource for Decoder {
     fn encode_openmetrics(&self, writer: &mut impl std::fmt::Write) -> Result<(), crate::Error> {
+        // Family entries share name and type but appear as separate items in
+        // the schema. Emit `# HELP` / `# TYPE` only when the prefixed name
+        // changes between consecutive items, matching what the registry path
+        // produces.
+        let mut prev_key: Option<(Vec<String>, String)> = None;
         for item in self.iter() {
-            item.encode_openmetrics(writer)?;
+            let key = (item.schema.prefixes.clone(), item.schema.name.clone());
+            if prev_key.as_ref() != Some(&key) {
+                item.encode_openmetrics_header(writer)?;
+                prev_key = Some(key);
+            }
+            item.encode_openmetrics_value(writer)?;
         }
-        write_eof(writer)?;
+        encode_eof(writer)?;
         Ok(())
     }
 }
@@ -410,11 +609,17 @@ impl dyn MetricsGroup {
             let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_schema(schema, prefixes, labels);
         }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_schema(schema, prefixes, labels);
+        }
     }
 
     pub(crate) fn encode_values(&self, values: &mut Values) {
         for metric in self.iter() {
             metric.encode_value(values);
+        }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_values(values);
         }
     }
 
@@ -433,6 +638,9 @@ impl dyn MetricsGroup {
         for metric in self.iter() {
             let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
             metric.encode_openmetrics(writer, prefixes, labels)?;
+        }
+        for family in IntoIterable::family_iter(self) {
+            family.encode_openmetrics(writer, prefixes, labels)?;
         }
         Ok(())
     }
@@ -460,47 +668,26 @@ pub(crate) trait EncodableMetric {
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) -> fmt::Result {
         writer.write_str("# HELP ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
+        encode_prefix_name(writer, prefixes, self.name())?;
         writer.write_str(" ")?;
-        writer.write_str(self.help())?;
-        writer.write_str(".\n")?;
+        encode_help_text(writer, self.help())?;
 
         writer.write_str("# TYPE ")?;
-        write_prefix_name(writer, prefixes, self.name())?;
+        encode_prefix_name(writer, prefixes, self.name())?;
         writer.write_str(" ")?;
         writer.write_str(self.r#type().as_str())?;
         writer.write_str("\n")?;
 
-        match self.value() {
-            MetricValue::Histogram {
-                buckets,
-                sum,
-                count,
-            } => {
-                let labels_vec: Vec<_> = labels.collect();
-                let histogram_data = HistogramData {
-                    buckets,
-                    sum,
-                    count,
-                };
-                encode_histogram_data(writer, self.name(), prefixes, &labels_vec, &histogram_data)?;
-            }
-            MetricValue::Counter(value) => {
-                write_prefix_name(writer, prefixes, self.name())?;
-                writer.write_str("_total")?;
-                write_labels(writer, labels)?;
-                writer.write_char(' ')?;
-                encode_u64(writer, value)?;
-                writer.write_str("\n")?;
-            }
-            MetricValue::Gauge(value) => {
-                write_prefix_name(writer, prefixes, self.name())?;
-                write_labels(writer, labels)?;
-                writer.write_char(' ')?;
-                encode_i64(writer, value)?;
-                writer.write_str("\n")?;
-            }
-        }
+        let labels_vec: Vec<_> = labels.collect();
+        let empty: &[(&str, &str)] = &[];
+        encode_metric_value(
+            writer,
+            self.name(),
+            prefixes,
+            &labels_vec,
+            empty,
+            &self.value(),
+        )?;
         Ok(())
     }
 }
@@ -512,18 +699,10 @@ impl MetricItem<'_> {
         prefixes: &[&str],
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) {
-        let item = crate::encoding::ItemSchema {
-            name: self.name().to_string(),
-            prefixes: prefixes.iter().map(|s| s.to_string()).collect(),
-            labels: labels
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-            r#type: self.r#type(),
-        };
-        schema.items.push(item);
-        if let Some(help) = schema.help.as_mut() {
-            help.push(self.help().to_string());
-        }
+        schema.push(
+            ItemSchema::from_label_iter(self.name(), prefixes, labels, self.r#type()),
+            self.help(),
+        );
     }
 
     fn encode_value(&self, values: &mut Values) {
@@ -540,48 +719,23 @@ impl MetricItem<'_> {
     }
 }
 
-fn write_labels<'a>(
-    writer: &mut impl Write,
-    labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
-) -> fmt::Result {
-    let mut is_first = true;
-    let mut labels = labels.peekable();
-    while let Some((key, value)) = labels.next() {
-        let is_last = labels.peek().is_none();
-        if is_first {
-            writer.write_char('{')?;
-            is_first = false;
-        }
-        writer.write_str(key)?;
-        writer.write_str("=\"")?;
-        writer.write_str(value)?;
-        writer.write_str("\"")?;
-        if is_last {
-            writer.write_char('}')?;
-        } else {
-            writer.write_char(',')?;
-        }
-    }
-    Ok(())
-}
-
-fn encode_u64(writer: &mut impl Write, v: u64) -> fmt::Result {
+pub(crate) fn encode_u64(writer: &mut (impl Write + ?Sized), v: u64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn encode_i64(writer: &mut impl Write, v: i64) -> fmt::Result {
+pub(crate) fn encode_i64(writer: &mut (impl Write + ?Sized), v: i64) -> fmt::Result {
     writer.write_str(itoa::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn encode_f64(writer: &mut impl Write, v: f64) -> fmt::Result {
+pub(crate) fn encode_f64(writer: &mut (impl Write + ?Sized), v: f64) -> fmt::Result {
     writer.write_str(ryu::Buffer::new().format(v))?;
     Ok(())
 }
 
-fn write_prefix_name(
-    writer: &mut impl Write,
+pub(crate) fn encode_prefix_name(
+    writer: &mut (impl Write + ?Sized),
     prefixes: &[impl AsRef<str>],
     name: &str,
 ) -> fmt::Result {
@@ -591,4 +745,14 @@ fn write_prefix_name(
     }
     writer.write_str(name)?;
     Ok(())
+}
+
+/// Writes `help` followed by `".\n"` — but skips the period if `help`
+/// already ends with `.`, `?` or `!`.
+pub(crate) fn encode_help_text(writer: &mut (impl Write + ?Sized), help: &str) -> fmt::Result {
+    writer.write_str(help)?;
+    if !matches!(help.chars().last(), Some('.') | Some('?') | Some('!')) {
+        writer.write_str(".")?;
+    }
+    writer.write_str("\n")
 }
