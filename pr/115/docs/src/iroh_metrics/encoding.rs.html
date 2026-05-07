@@ -800,7 +800,9 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
 //!
 //! [OpenMetrics text format]: https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md
 
@@ -1278,6 +1280,7 @@
     <span class="doccomment">/// Imports a metric update from serialized bytes.
     ///
     /// Deserializes the bytes using postcard and imports the resulting update.
+    </span><span class="attr">#[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">pub fn </span>import_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), postcard::Error&gt; {
         <span class="kw">let </span>update = postcard::from_bytes(data)<span class="question-mark">?</span>;
         <span class="self">self</span>.import(update);
@@ -1435,6 +1438,7 @@
     <span class="doccomment">/// Exports the current state of the registry as serialized bytes.
     ///
     /// Returns the serialized bytes of an [`Update`] using postcard encoding.
+    </span><span class="attr">#[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">pub fn </span>export_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, postcard::Error&gt; {
         postcard::to_stdvec(<span class="kw-2">&amp;</span><span class="self">self</span>.export())
     }

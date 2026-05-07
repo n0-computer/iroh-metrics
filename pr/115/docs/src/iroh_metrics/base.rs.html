@@ -890,7 +890,13 @@
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
-<a href="#892" id="892">892</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{any::Any, sync::Arc};
 
 <span class="kw">use crate</span>::{
     Metric, MetricType, MetricValue,
@@ -1006,14 +1012,16 @@
 <span class="doccomment">/// Tests with the `metrics` feature,
 </span><span class="attr">#[cfg(all(test, feature = <span class="string">"metrics"</span>))]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>std::sync::RwLock;
+    <span class="attr">#[cfg(feature = <span class="string">"postcard"</span>)]
+    </span><span class="kw">use </span>std::sync::RwLock;
 
     <span class="kw">use </span>serde::{Deserialize, Serialize};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="attr">#[cfg(feature = <span class="string">"postcard"</span>)]
+    </span><span class="kw">use </span><span class="kw">crate</span>::encoding::{Decoder, Encoder};
     <span class="kw">use crate</span>::{
         Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
-        encoding::{Decoder, Encoder},
         iterable::Iterable,
     };
 
@@ -1283,6 +1291,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">fn </span>test_encode_decode() {
         <span class="kw">let </span><span class="kw-2">mut </span>registry = Registry::default();
         <span class="kw">let </span>metrics = Arc::new(FooMetrics::default());
@@ -1457,6 +1466,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">fn </span>test_histogram_encode_decode() {
         <span class="kw">use </span>std::sync::{Arc, RwLock};
 
@@ -1541,6 +1551,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">fn </span>test_histogram_openmetrics_from_decoder() {
         <span class="kw">use </span>std::sync::{Arc, RwLock};
 
@@ -1697,6 +1708,7 @@ combined_bar_count_total{x="y"} 10
         }
 
         <span class="attr">#[test]
+        #[cfg(feature = <span class="string">"postcard"</span>)]
         </span><span class="kw">fn </span>encode_decode_roundtrip_matches_registry() {
             <span class="kw">let </span>(metrics, registry) = registered();
             metrics.bytes.inc_by(<span class="number">100</span>);
