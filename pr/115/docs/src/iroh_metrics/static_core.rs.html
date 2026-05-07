@@ -164,9 +164,7 @@
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
 <a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
+<a href="#166" id="166">166</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics collection in a static, process-level global metrics collector.
 //!
 //! Enables and manages a global registry of metrics.
 //! Divided up into modules, each module has its own metrics.
@@ -174,9 +172,7 @@
 //! - To increment a **counter**, use the [`crate::inc`] macro with a value.
 //! - To increment a **counter** by 1, use the [`crate::inc_by`] macro.
 //!
-//! To expose the metrics, start the metrics service with [`MetricsServer::spawn`].
-//!
-//! [`MetricsServer::spawn`]: crate::service::MetricsServer::spawn
+//! To expose the metrics, start the metrics service from `crate::service`.
 //!
 //! # Example:
 //! ```rust

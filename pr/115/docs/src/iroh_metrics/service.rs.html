@@ -546,7 +546,8 @@
 <a href="#545" id="545">545</a>
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
 //!
 //! Each service runs in a single background task that is aborted when the
 //! returned handle is dropped.
@@ -744,17 +745,11 @@
             <span class="macro">error!</span>(<span class="string">"metrics dumper failed: {err:#}"</span>);
             <span class="kw">return</span>;
         }
-        <span class="kw">if </span>write_header {
-            write_header = <span class="bool-val">false</span>;
-            <span class="kw">if </span>cancel.is_cancelled() {
-                <span class="kw">break</span>;
-            }
-        } <span class="kw">else </span>{
-            <span class="macro">tokio::select!</span> {
-                biased;
-                () = cancel.cancelled() =&gt; <span class="kw">break</span>,
-                () = tokio::time::sleep(interval) =&gt; {}
-            }
+        write_header = <span class="bool-val">false</span>;
+        <span class="macro">tokio::select!</span> {
+            biased;
+            () = cancel.cancelled() =&gt; <span class="kw">break</span>,
+            () = tokio::time::sleep(interval) =&gt; {}
         }
     }
 }
@@ -783,7 +778,7 @@
     <span class="doccomment">/// Gracefully shuts down the exporter.
     ///
     /// Stops between push cycles, letting the current push finish before
-    /// returning.
+    /// returning. Wrap in [`tokio::time::timeout`] to bound the wait.
     </span><span class="kw">pub async fn </span>shutdown(<span class="self">self</span>) {
         <span class="self">self</span>.cancel.cancel();
         <span class="kw">let _ </span>= <span class="self">self</span>.task.<span class="kw">await</span>;
@@ -819,6 +814,7 @@
             () = cancel.cancelled() =&gt; <span class="kw">break</span>,
             () = tokio::time::sleep(interval) =&gt; {}
         }
+
         <span class="kw">let </span>buf = <span class="kw">match </span>registry.encode_openmetrics_to_string() {
             <span class="prelude-val">Ok</span>(buf) =&gt; buf,
             <span class="prelude-val">Err</span>(err) =&gt; {
@@ -842,9 +838,15 @@
                 <span class="macro">debug!</span>(<span class="string">"pushed metrics to gateway"</span>);
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">warn!</span>(<span class="string">"failed to push metrics to gateway: {:?}"</span>, res);
-                <span class="kw">let </span>body = res.text().<span class="kw">await</span>.unwrap();
-                <span class="macro">warn!</span>(<span class="string">"error body: {}"</span>, body);
+                <span class="kw">let </span>status = res.status();
+                <span class="kw">match </span>res.text().<span class="kw">await </span>{
+                    <span class="prelude-val">Ok</span>(body) =&gt; <span class="macro">warn!</span>(<span class="string">"failed to push metrics to gateway: {status} {body}"</span>),
+                    <span class="prelude-val">Err</span>(err) =&gt; {
+                        <span class="macro">warn!</span>(
+                            <span class="string">"failed to push metrics to gateway: {status}; reading body failed: {err:#}"
+                        </span>)
+                    }
+                }
             }
         }
     }
