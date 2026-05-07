@@ -585,9 +585,9 @@
         addr: SocketAddr,
         registry: <span class="kw">impl </span>MetricsSource + Clone,
     ) -&gt; std::io::Result&lt;<span class="self">Self</span>&gt; {
-        <span class="macro">info!</span>(<span class="string">"Starting metrics server on {addr}"</span>);
         <span class="kw">let </span>listener = TcpListener::bind(addr).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>addr = listener.local_addr()<span class="question-mark">?</span>;
+        <span class="macro">info!</span>(<span class="string">"Starting metrics server on {addr}"</span>);
         <span class="kw">let </span>cancel = CancellationToken::new();
         <span class="kw">let </span>task = tokio::spawn(server_loop(listener, registry, cancel.clone()));
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -766,7 +766,7 @@
 
 <span class="kw">impl </span>MetricsPushExporter {
     <span class="doccomment">/// Spawns the push exporter in a background task.
-    </span><span class="kw">pub fn </span>spawn(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub async fn </span>spawn(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>cancel = CancellationToken::new();
         <span class="kw">let </span>task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
         <span class="self">Self </span>{
@@ -1083,7 +1083,7 @@
             tls_config: <span class="prelude-val">None</span>,
         };
 
-        <span class="kw">let </span>exporter = MetricsPushExporter::spawn(cfg, registry());
+        <span class="kw">let </span>exporter = MetricsPushExporter::spawn(cfg, registry()).<span class="kw">await</span>;
 
         <span class="kw">let </span>(path, body) = tokio::time::timeout(Duration::from_secs(<span class="number">5</span>), rx)
             .<span class="kw">await
