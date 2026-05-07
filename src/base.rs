@@ -120,13 +120,12 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
+    #[cfg(feature = "postcard")]
+    use crate::encoding::{Decoder, Encoder};
     use crate::{
         Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
         iterable::Iterable,
     };
-
-    #[cfg(feature = "postcard")]
-    use crate::encoding::{Decoder, Encoder};
 
     #[derive(Debug, Iterable, Serialize, Deserialize)]
     pub struct FooMetrics {
