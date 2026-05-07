@@ -25,6 +25,7 @@ type BytesBody = http_body_util::Full<hyper::body::Bytes>;
 /// [`shutdown`](Self::shutdown).
 #[derive(Debug)]
 pub struct MetricsServer {
+    addr: SocketAddr,
     cancel: CancellationToken,
     task: AbortOnDropHandle<()>,
 }
@@ -37,12 +38,19 @@ impl MetricsServer {
     ) -> std::io::Result<Self> {
         info!("Starting metrics server on {addr}");
         let listener = TcpListener::bind(addr).await?;
+        let addr = listener.local_addr()?;
         let cancel = CancellationToken::new();
         let task = tokio::spawn(server_loop(listener, registry, cancel.clone()));
         Ok(Self {
+            addr,
             cancel,
             task: AbortOnDropHandle::new(task),
         })
+    }
+
+    /// Returns the local address the server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.addr
     }
 
     /// Gracefully shuts down the server.
@@ -121,10 +129,12 @@ async fn serve_connection(
 
 /// Periodic dumper that writes metrics as CSV rows to a file.
 ///
-/// Aborts the background task on drop.
+/// Aborts the background task on drop. For an orderly shutdown that lets
+/// the in-flight dump finish, call [`shutdown`](Self::shutdown).
 #[derive(Debug)]
 pub struct MetricsDumper {
-    _task: AbortOnDropHandle<()>,
+    cancel: CancellationToken,
+    task: AbortOnDropHandle<()>,
 }
 
 impl MetricsDumper {
@@ -143,53 +153,100 @@ impl MetricsDumper {
             .truncate(true)
             .open(&path)
             .await?;
-        let task = tokio::spawn(async move {
-            let mut file = tokio::io::BufWriter::new(file);
-            let start = Instant::now();
-            let mut write_header = true;
-            loop {
-                let encoded = match registry.encode_openmetrics_to_string() {
-                    Ok(s) => s,
-                    Err(err) => {
-                        error!("metrics dumper failed: {err:#}");
-                        return;
-                    }
-                };
-                if let Err(err) = dump_metrics(&mut file, &start, &encoded, write_header).await {
-                    error!("metrics dumper failed: {err:#}");
-                    return;
-                }
-                if !write_header {
-                    tokio::time::sleep(interval).await;
-                }
-                write_header = false;
-            }
-        });
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn(dumper_loop(
+            tokio::io::BufWriter::new(file),
+            interval,
+            registry,
+            cancel.clone(),
+        ));
         Ok(Self {
-            _task: AbortOnDropHandle::new(task),
+            cancel,
+            task: AbortOnDropHandle::new(task),
         })
+    }
+
+    /// Gracefully shuts down the dumper.
+    ///
+    /// Stops between dump cycles, letting the current dump finish before
+    /// returning.
+    pub async fn shutdown(self) {
+        self.cancel.cancel();
+        let _ = self.task.await;
+    }
+}
+
+async fn dumper_loop(
+    mut file: tokio::io::BufWriter<tokio::fs::File>,
+    interval: Duration,
+    registry: impl MetricsSource,
+    cancel: CancellationToken,
+) {
+    let start = Instant::now();
+    let mut write_header = true;
+    loop {
+        let encoded = match registry.encode_openmetrics_to_string() {
+            Ok(s) => s,
+            Err(err) => {
+                error!("metrics dumper failed: {err:#}");
+                return;
+            }
+        };
+        if let Err(err) = dump_metrics(&mut file, &start, &encoded, write_header).await {
+            error!("metrics dumper failed: {err:#}");
+            return;
+        }
+        if write_header {
+            write_header = false;
+            if cancel.is_cancelled() {
+                break;
+            }
+        } else {
+            tokio::select! {
+                biased;
+                () = cancel.cancelled() => break,
+                () = tokio::time::sleep(interval) => {}
+            }
+        }
     }
 }
 
 /// Periodic exporter that pushes metrics to a Prometheus push gateway.
 ///
-/// Aborts the background task on drop.
+/// Aborts the background task on drop. For an orderly shutdown that lets
+/// the in-flight push finish, call [`shutdown`](Self::shutdown).
 #[derive(Debug)]
 pub struct MetricsPushExporter {
-    _task: AbortOnDropHandle<()>,
+    cancel: CancellationToken,
+    task: AbortOnDropHandle<()>,
 }
 
 impl MetricsPushExporter {
     /// Spawns the push exporter in a background task.
     pub fn spawn(cfg: MetricsExporterConfig, registry: impl MetricsSource) -> Self {
-        let task = tokio::spawn(exporter_loop(cfg, registry));
+        let cancel = CancellationToken::new();
+        let task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
         Self {
-            _task: AbortOnDropHandle::new(task),
+            cancel,
+            task: AbortOnDropHandle::new(task),
         }
+    }
+
+    /// Gracefully shuts down the exporter.
+    ///
+    /// Stops between push cycles, letting the current push finish before
+    /// returning.
+    pub async fn shutdown(self) {
+        self.cancel.cancel();
+        let _ = self.task.await;
     }
 }
 
-async fn exporter_loop(cfg: MetricsExporterConfig, registry: impl MetricsSource) {
+async fn exporter_loop(
+    cfg: MetricsExporterConfig,
+    registry: impl MetricsSource,
+    cancel: CancellationToken,
+) {
     let MetricsExporterConfig {
         interval,
         endpoint,
@@ -197,28 +254,23 @@ async fn exporter_loop(cfg: MetricsExporterConfig, registry: impl MetricsSource)
         instance_name,
         username,
         password,
+        tls_config,
     } = cfg;
 
-    // All of the `.expect`s were previously internal to the `reqwest::Client::new` call.
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let tls = tls_config.unwrap_or_else(default_tls_config);
     let push_client = reqwest::Client::builder()
-        .use_preconfigured_tls(
-            rustls::ClientConfig::builder_with_provider(provider.clone())
-                .with_safe_default_protocol_versions()
-                .expect("no TLS 1.3 support in ring")
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(
-                    rustls_platform_verifier::Verifier::new(provider)
-                        .expect("rustls platform verifier incompatible with ring"),
-                )),
-        )
+        .use_preconfigured_tls(tls)
         .build()
-        .expect("reqwest incompatible with ring");
+        .expect("reqwest client builder failed");
 
     let prom_gateway_uri =
         format!("{endpoint}/metrics/job/{service_name}/instance/{instance_name}");
     loop {
-        tokio::time::sleep(interval).await;
+        tokio::select! {
+            biased;
+            () = cancel.cancelled() => break,
+            () = tokio::time::sleep(interval) => {}
+        }
         let buf = match registry.encode_openmetrics_to_string() {
             Ok(buf) => buf,
             Err(err) => {
@@ -248,6 +300,21 @@ async fn exporter_loop(cfg: MetricsExporterConfig, registry: impl MetricsSource)
             }
         }
     }
+}
+
+/// Builds the default rustls config used when no [`MetricsExporterConfig::tls_config`]
+/// is supplied: the ring crypto provider with the platform certificate verifier.
+fn default_tls_config() -> rustls::ClientConfig {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    rustls::ClientConfig::builder_with_provider(provider.clone())
+        .with_safe_default_protocol_versions()
+        .expect("no TLS 1.3 support in ring")
+        .dangerous()
+        .with_custom_certificate_verifier(Arc::new(
+            rustls_platform_verifier::Verifier::new(provider)
+                .expect("rustls platform verifier incompatible with ring"),
+        ))
+        .with_no_client_auth()
 }
 
 /// HTTP handler that responds with the OpenMetrics encoding of the metrics.
@@ -309,7 +376,7 @@ async fn dump_metrics(
 }
 
 /// Configuration for pushing metrics to a remote endpoint.
-#[derive(PartialEq, Eq, Debug, Default, serde::Deserialize, Clone)]
+#[derive(Debug, Default, serde::Deserialize, Clone)]
 pub struct MetricsExporterConfig {
     /// The push interval.
     pub interval: Duration,
@@ -336,4 +403,146 @@ pub struct MetricsExporterConfig {
     pub username: Option<String>,
     /// The password for basic auth for the push metrics collector.
     pub password: String,
+    /// Custom rustls [`ClientConfig`] for the push client.
+    ///
+    /// If `None`, a default config is used: the ring crypto provider with
+    /// the platform certificate verifier.
+    ///
+    /// [`ClientConfig`]: rustls::ClientConfig
+    #[serde(skip)]
+    pub tls_config: Option<rustls::ClientConfig>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use super::*;
+    use crate::{Counter, Registry};
+
+    #[derive(Debug, crate::MetricsGroup)]
+    #[metrics(default, name = "test")]
+    struct TestMetrics {
+        /// Smoke test counter
+        count: Counter,
+    }
+
+    fn registry() -> Arc<Registry> {
+        let metrics = Arc::new(TestMetrics::default());
+        metrics.count.inc_by(7);
+        let mut reg = Registry::default();
+        reg.register(metrics);
+        Arc::new(reg)
+    }
+
+    #[tokio::test]
+    async fn smoke_metrics_server() {
+        let server = MetricsServer::spawn("127.0.0.1:0".parse().unwrap(), registry())
+            .await
+            .unwrap();
+        let addr = server.local_addr();
+
+        let mut stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        stream
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await.unwrap();
+        let response = String::from_utf8(response).unwrap();
+
+        assert!(response.starts_with("HTTP/1.1 200"), "response: {response}");
+        assert!(
+            response.contains("test_count_total 7"),
+            "response: {response}"
+        );
+
+        server.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn smoke_metrics_dumper() {
+        let path = std::env::temp_dir().join(format!(
+            "iroh-metrics-smoke-dumper-{}.csv",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+
+        let dumper = MetricsDumper::spawn(path.clone(), Duration::from_millis(50), registry())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        dumper.shutdown().await;
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+
+        let mut lines = contents.lines();
+        let header = lines.next().expect("header line");
+        assert!(header.starts_with("time"), "header: {header}");
+        assert!(header.contains("test_count"), "header: {header}");
+        let row = lines.next().expect("at least one data row");
+        assert!(row.contains("7.000"), "row: {row}");
+    }
+
+    #[tokio::test]
+    async fn smoke_metrics_push_exporter() {
+        use std::sync::Mutex;
+
+        use http_body_util::{BodyExt, Full};
+        use hyper::{Request, Response, body::Incoming, service::service_fn};
+        use hyper_util::rt::TokioIo;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = tokio::sync::oneshot::channel::<(String, String)>();
+        let tx = Arc::new(Mutex::new(Some(tx)));
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
+            let service = service_fn(move |req: Request<Incoming>| {
+                let tx = tx.clone();
+                async move {
+                    let path = req.uri().path().to_string();
+                    let body = req.into_body().collect().await.unwrap().to_bytes();
+                    let body = String::from_utf8_lossy(&body).to_string();
+                    if let Some(tx) = tx.lock().expect("poisoned").take() {
+                        let _ = tx.send((path, body));
+                    }
+                    Ok::<_, std::convert::Infallible>(Response::new(Full::new(
+                        hyper::body::Bytes::new(),
+                    )))
+                }
+            });
+            let _ = hyper::server::conn::http1::Builder::new()
+                .serve_connection(io, service)
+                .await;
+        });
+
+        let cfg = MetricsExporterConfig {
+            interval: Duration::from_millis(50),
+            endpoint: format!("http://{addr}"),
+            service_name: "svc".to_string(),
+            instance_name: "inst".to_string(),
+            username: None,
+            password: String::new(),
+            tls_config: None,
+        };
+
+        let exporter = MetricsPushExporter::spawn(cfg, registry());
+
+        let (path, body) = tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .expect("timeout waiting for push")
+            .expect("oneshot dropped");
+
+        assert_eq!(path, "/metrics/job/svc/instance/inst");
+        assert!(body.contains("test_count_total 7"), "body: {body}");
+
+        exporter.shutdown().await;
+    }
 }
