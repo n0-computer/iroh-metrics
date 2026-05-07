@@ -9,7 +9,7 @@ information in updates when it has changed.</p>
 <p>Returns an <a href="struct.Update.html" title="struct iroh_metrics::encoding::Update"><code>Update</code></a> containing the current metric values and
 optionally the schema (if it has changed since the last export).</p>
 <p>Each family’s schema items and values are pushed under a single read
-lock per family (see <code>FamilyEncoder::encode_export</code>), so the two flat
+lock per family (see <code>FamilyEncoder::encode_schema</code>), so the two flat
 slices are always internally consistent. We always build the schema
 up front and then decide whether to attach it based on the
 <code>schema_version</code> <em>after</em> the walk — this catches the case where a

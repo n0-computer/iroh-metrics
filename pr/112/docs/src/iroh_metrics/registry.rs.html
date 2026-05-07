@@ -310,13 +310,13 @@
     /// schema and values together — and per-family under a single read lock —
     /// keeps the two flat slices aligned even under concurrent
     /// `Family::get_or_create` from other threads.
-    </span><span class="kw">pub fn </span>encode_export(
+    </span><span class="kw">pub fn </span>encode_schema(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Schema&gt;,
         values: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::encoding::Values,
     ) {
         <span class="kw">for </span>group <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.metrics {
-            group.encode_export(
+            group.encode_schema(
                 schema.as_deref_mut(),
                 values,
                 <span class="self">self</span>.prefix.as_deref(),
@@ -325,7 +325,7 @@
         }
 
         <span class="kw">for </span>sub <span class="kw">in </span><span class="self">self</span>.sub_registries.iter() {
-            sub.encode_export(schema.as_deref_mut(), values);
+            sub.encode_schema(schema.as_deref_mut(), values);
         }
     }
 }

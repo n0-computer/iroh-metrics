@@ -1402,7 +1402,7 @@
     /// optionally the schema (if it has changed since the last export).
     ///
     /// Each family's schema items and values are pushed under a single read
-    /// lock per family (see `FamilyEncoder::encode_export`), so the two flat
+    /// lock per family (see `FamilyEncoder::encode_schema`), so the two flat
     /// slices are always internally consistent. We always build the schema
     /// up front and then decide whether to attach it based on the
     /// `schema_version` *after* the walk — this catches the case where a
@@ -1418,7 +1418,7 @@
             Schema::new_without_help()
         };
         <span class="kw">let </span><span class="kw-2">mut </span>values = Values::default();
-        registry.encode_export(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>schema), <span class="kw-2">&amp;mut </span>values);
+        registry.encode_schema(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>schema), <span class="kw-2">&amp;mut </span>values);
 
         <span class="kw">let </span>end_version = registry.schema_version();
         <span class="self">self</span>.last_schema_version = end_version;
@@ -1435,7 +1435,7 @@
 }
 
 <span class="kw">impl dyn </span>MetricsGroup {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_export&lt;<span class="lifetime">'a</span>&gt;(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_schema&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
         values: <span class="kw-2">&amp;mut </span>Values,
@@ -1456,7 +1456,7 @@
             metric.encode_value(values);
         }
         <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
-            family.encode_export(schema.as_deref_mut(), values, prefixes, labels);
+            family.encode_schema(schema.as_deref_mut(), values, prefixes, labels);
         }
     }
 

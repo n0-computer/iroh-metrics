@@ -900,7 +900,7 @@
     /// Schema items (when `schema` is `Some`) and values are pushed under a
     /// single read lock per family, so the two slices stay aligned even when
     /// other threads are inserting new label combinations concurrently.
-    </span><span class="kw">fn </span>encode_export(
+    </span><span class="kw">fn </span>encode_schema(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
         values: <span class="kw-2">&amp;mut </span>Values,
@@ -971,14 +971,14 @@
     }
 
     <span class="doccomment">/// Encodes the binary export of this family (schema and/or values).
-    </span><span class="kw">pub fn </span>encode_export(
+    </span><span class="kw">pub fn </span>encode_schema(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
         values: <span class="kw-2">&amp;mut </span>Values,
         prefixes: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
         registry_labels: <span class="kw-2">&amp;</span>[(Cow&lt;<span class="lifetime">'_</span>, str&gt;, Cow&lt;<span class="lifetime">'_</span>, str&gt;)],
     ) {
-        <span class="self">self</span>.family.encode_export(
+        <span class="self">self</span>.family.encode_schema(
             schema,
             values,
             <span class="self">self</span>.name,
@@ -1298,7 +1298,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>encode_export(
+    <span class="kw">fn </span>encode_schema(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
         values: <span class="kw-2">&amp;mut </span>Values,
@@ -1436,7 +1436,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn </span>encode_export(
+    <span class="kw">fn </span>encode_schema(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         _schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
         _values: <span class="kw-2">&amp;mut </span>Values,
@@ -1645,7 +1645,7 @@
         <span class="comment">// Binary schema + values
         </span><span class="kw">let </span><span class="kw-2">mut </span>schema = Schema::default();
         <span class="kw">let </span><span class="kw-2">mut </span>values = Values::default();
-        FamilyEncoder::encode_export(
+        FamilyEncoder::encode_schema(
             <span class="kw-2">&amp;</span>family,
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>schema),
             <span class="kw-2">&amp;mut </span>values,
