@@ -391,6 +391,7 @@ combined_bar_count_total{x="y"} 10
     }
 
     #[test]
+    #[cfg(feature = "postcard")]
     fn test_encode_decode() {
         let mut registry = Registry::default();
         let metrics = Arc::new(FooMetrics::default());
@@ -805,6 +806,7 @@ combined_bar_count_total{x="y"} 10
         }
 
         #[test]
+        #[cfg(feature = "postcard")]
         fn encode_decode_roundtrip_matches_registry() {
             let (metrics, registry) = registered();
             metrics.bytes.inc_by(100);
