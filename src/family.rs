@@ -240,7 +240,11 @@ where
 
     /// Looks up an existing metric without creating one. Read-only fast path.
     pub fn get(&self, labels: &L) -> Option<Arc<M>> {
-        self.inner.read().expect("poisoned").get(labels).map(Arc::clone)
+        self.inner
+            .read()
+            .expect("poisoned")
+            .get(labels)
+            .map(Arc::clone)
     }
 
     /// Removes the metric for the given labels.
