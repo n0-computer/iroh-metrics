@@ -604,15 +604,18 @@ impl Encoder {
     ///
     /// Each family's schema items and values are pushed under a single read
     /// lock per family (see `FamilyEncoder::encode_schema`), so the two flat
-    /// slices are always internally consistent. We always build the schema
-    /// up front and then decide whether to attach it based on the
-    /// `schema_version` *after* the walk — this catches the case where a
-    /// `Family::get_or_create` raced mid-walk and bumped the counter, so the
-    /// decoder gets a fresh schema instead of being stuck with a stale
-    /// cached one.
+    /// slices are always internally consistent. We capture the version
+    /// *before* the walk and advance `last_schema_version` only that far —
+    /// any insert that races between two families' walks bumps the version
+    /// past `start_version`, forcing the *next* export to re-publish a
+    /// schema that matches the values it sends. Advancing past the captured
+    /// version would let the next round skip publishing while the values
+    /// list has already grown, leaving the decoder one entry behind for
+    /// every later item.
     pub fn export(&mut self) -> Update {
         let registry = self.registry.read().expect("poisoned");
         let last_seen = self.last_schema_version;
+        let start_version = registry.schema_version();
         let mut schema = if self.opts.include_help {
             Schema::default()
         } else {
@@ -622,7 +625,7 @@ impl Encoder {
         registry.encode_schema(Some(&mut schema), &mut values);
 
         let end_version = registry.schema_version();
-        self.last_schema_version = end_version;
+        self.last_schema_version = start_version;
         let schema = (end_version != last_seen).then_some(schema);
         Update { schema, values }
     }
