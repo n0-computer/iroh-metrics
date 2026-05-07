@@ -767,7 +767,11 @@
 <a href="#766" id="766">766</a>
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
 //!
 //! A [`Family`] is a collection of metrics indexed by label sets. Labels
 //! should be low cardinality: each unique combination becomes a separate
@@ -1009,7 +1013,11 @@
 
     <span class="doccomment">/// Looks up an existing metric without creating one. Read-only fast path.
     </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, labels: <span class="kw-2">&amp;</span>L) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;M&gt;&gt; {
-        <span class="self">self</span>.inner.read().expect(<span class="string">"poisoned"</span>).get(labels).map(Arc::clone)
+        <span class="self">self</span>.inner
+            .read()
+            .expect(<span class="string">"poisoned"</span>)
+            .get(labels)
+            .map(Arc::clone)
     }
 
     <span class="doccomment">/// Removes the metric for the given labels.
