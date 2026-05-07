@@ -699,9 +699,8 @@ impl MetricItem<'_> {
         prefixes: &[&str],
         labels: impl Iterator<Item = (&'a str, &'a str)> + 'a,
     ) {
-        let labels_vec: Vec<_> = labels.collect();
         schema.push(
-            ItemSchema::new(self.name(), prefixes, &labels_vec, self.r#type()),
+            ItemSchema::from_label_iter(self.name(), prefixes, labels, self.r#type()),
             self.help(),
         );
     }

@@ -102,8 +102,12 @@ pub trait Metric: std::fmt::Debug + Send + Sync {
 
     /// Sets the value of this metric from a [`MetricValue`].
     ///
-    /// This is used for deserialization. If the value type doesn't match,
-    /// the implementation should silently ignore the value.
+    /// Used by the [`Family`](crate::Family) deserialize impl: a family
+    /// stores generic `Arc<M>` entries and round-trips through serde as
+    /// `Vec<(L, MetricValue)>`, so on deserialize each `M` is constructed via
+    /// `Default` and then populated through this setter. If the variant
+    /// doesn't match this metric's type the implementation must silently
+    /// ignore it.
     fn set_value(&self, value: MetricValue);
 
     /// Casts this metric to [`Any`] for downcasting to concrete types.

@@ -78,12 +78,14 @@ pub use iroh_metrics_derive::EncodeLabelValue;
 /// method. The name can be customized by setting a `#[metrics(name = "my-name")]` attribute.
 ///
 /// It will also generate a [`Iterable`] impl. Fields with the `Family<_, _>`
-/// type are routed through the family-encoder iteration. Detection inspects
-/// the last segment of the field type, so `iroh_metrics::Family<L, M>` is
-/// recognized but a type alias is not — annotate the field with
-/// `#[metrics(family)]` in that case.
+/// type are routed through [`Iterable::family_field_ref`] instead of
+/// [`Iterable::metric_field_ref`]. Detection inspects the last segment of
+/// the field type, so `iroh_metrics::Family<L, M>` is recognized but a type
+/// alias is not — annotate the field with `#[metrics(family)]` in that case.
 ///
 /// [`Iterable`]: iterable::Iterable
+/// [`Iterable::metric_field_ref`]: iterable::Iterable::metric_field_ref
+/// [`Iterable::family_field_ref`]: iterable::Iterable::family_field_ref
 pub use iroh_metrics_derive::MetricsGroup;
 
 /// Derives [`MetricsGroupSet`] for a struct.

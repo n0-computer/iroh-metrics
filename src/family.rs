@@ -159,8 +159,17 @@ where
 {
     inner: Arc<RwLock<HashMap<L, Arc<M>>>>,
     constructor: Constructor<M>,
-    // Set when the parent group is registered. Bumped on each new label combo
-    // so the binary encoder re-publishes the schema.
+    // Set once when the parent group is registered. Bumped on each new label
+    // combo so the binary encoder re-publishes the schema.
+    //
+    // Why `Arc<OnceLock<Arc<AtomicU64>>>` and not just `Arc<AtomicU64>`?
+    // - The counter is owned by the registry; a `Family` constructed inside a
+    //   user struct does not know about it until `Registry::register` walks
+    //   the group's families and attaches it. `OnceLock` lets us bind it
+    //   exactly once after construction without introducing a `Mutex`.
+    // - The outer `Arc` keeps that "attached" state shared between any
+    //   `Family::clone` instances (the `RwLock<HashMap>` is shared too, so
+    //   inserts on a clone must bump the same counter).
     schema_version: Arc<OnceLock<Arc<AtomicU64>>>,
 }
 
@@ -579,12 +588,49 @@ where
 #[cfg(not(feature = "metrics"))]
 impl<'de, L, M> Deserialize<'de> for Family<L, M>
 where
-    L: EncodeLabelSet,
+    L: EncodeLabelSet + Deserialize<'de>,
     M: Metric + Default + 'static,
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let _: serde::de::IgnoredAny = serde::de::Deserialize::deserialize(deserializer)?;
+        // Parse and discard the entries — without metrics we don't track them,
+        // but we must consume the wire format so that postcard et al. can
+        // resume reading the next field. `IgnoredAny` is not enough because
+        // postcard's deserializer doesn't implement `deserialize_ignored_any`.
+        let _: Vec<(L, crate::MetricValue)> = Vec::deserialize(deserializer)?;
         Ok(Family::new())
+    }
+}
+
+#[cfg(all(test, not(feature = "metrics")))]
+mod tests_no_metrics {
+    use std::borrow::Cow;
+
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{Counter, LabelPair};
+
+    #[derive(Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
+    struct TestLabels {
+        method: String,
+    }
+
+    impl EncodeLabelSet for TestLabels {
+        fn encode_label_pairs(&self) -> Vec<LabelPair<'_>> {
+            vec![(
+                "method",
+                crate::LabelValue::Str(Cow::Borrowed(&self.method)),
+            )]
+        }
+    }
+
+    #[test]
+    fn family_serde_roundtrip_no_metrics_feature() {
+        // Serialize as empty (no entries are tracked when metrics are off),
+        // deserialize back, and verify no panic / decode succeeds.
+        let family: Family<TestLabels, Counter> = Family::new();
+        let bytes = postcard::to_stdvec(&family).unwrap();
+        let _decoded: Family<TestLabels, Counter> = postcard::from_bytes(&bytes).unwrap();
     }
 }
 

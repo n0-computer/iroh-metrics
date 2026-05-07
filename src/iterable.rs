@@ -16,15 +16,15 @@ use crate::{FamilyItem, MetricItem};
 /// Trait for iterating over the fields of a struct.
 pub trait Iterable {
     /// Returns the number of metric fields in the struct.
-    fn field_count(&self) -> usize;
-    /// Returns the field name and dyn reference to the field.
-    fn field_ref(&self, n: usize) -> Option<MetricItem<'_>>;
-    /// Returns the number of Family fields in the struct.
-    fn family_count(&self) -> usize {
+    fn metric_field_count(&self) -> usize;
+    /// Returns the metric field at the given index.
+    fn metric_field_ref(&self, n: usize) -> Option<MetricItem<'_>>;
+    /// Returns the number of [`Family`](crate::Family) fields in the struct.
+    fn family_field_count(&self) -> usize {
         0
     }
-    /// Returns the Family field at the given index.
-    fn family_ref(&self, _n: usize) -> Option<FamilyItem<'_>> {
+    /// Returns the [`Family`](crate::Family) field at the given index.
+    fn family_field_ref(&self, _n: usize) -> Option<FamilyItem<'_>> {
         None
     }
 }
@@ -77,17 +77,17 @@ impl<'a> Iterator for FieldIter<'a> {
     type Item = MetricItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.inner.field_count() {
+        if self.pos == self.inner.metric_field_count() {
             None
         } else {
-            let out = self.inner.field_ref(self.pos);
+            let out = self.inner.metric_field_ref(self.pos);
             self.pos += 1;
             out
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.inner.field_count() - self.pos;
+        let n = self.inner.metric_field_count() - self.pos;
         (n, Some(n))
     }
 }
@@ -114,17 +114,17 @@ impl<'a> Iterator for FamilyIter<'a> {
     type Item = FamilyItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.inner.family_count() {
+        if self.pos == self.inner.family_field_count() {
             None
         } else {
-            let out = self.inner.family_ref(self.pos);
+            let out = self.inner.family_field_ref(self.pos);
             self.pos += 1;
             out
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.inner.family_count() - self.pos;
+        let n = self.inner.family_field_count() - self.pos;
         (n, Some(n))
     }
 }

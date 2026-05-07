@@ -87,8 +87,8 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
 
     let family_impl = (family_count > 0).then(|| {
         quote! {
-            fn family_count(&self) -> usize { #family_count }
-            fn family_ref(&self, n: usize) -> Option<::iroh_metrics::FamilyItem<'_>> {
+            fn family_field_count(&self) -> usize { #family_count }
+            fn family_field_ref(&self, n: usize) -> Option<::iroh_metrics::FamilyItem<'_>> {
                 match n {
                     #(#family_arms)*
                     _ => None,
@@ -99,8 +99,8 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
 
     Ok(quote! {
         impl ::iroh_metrics::iterable::Iterable for #name {
-            fn field_count(&self) -> usize { #metric_count }
-            fn field_ref(&self, n: usize) -> Option<::iroh_metrics::MetricItem<'_>> {
+            fn metric_field_count(&self) -> usize { #metric_count }
+            fn metric_field_ref(&self, n: usize) -> Option<::iroh_metrics::MetricItem<'_>> {
                 match n {
                     #(#metric_arms)*
                     _ => None,
