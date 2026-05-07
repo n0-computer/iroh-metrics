@@ -53,7 +53,6 @@ pub mod static_core;
 /// }
 /// ```
 pub use iroh_metrics_derive::EncodeLabelSet;
-
 /// Derives [`EncodeLabelValue`] for an enum with only unit variants.
 ///
 /// Each variant becomes a string label; default casing is `snake_case`.
@@ -61,7 +60,6 @@ pub use iroh_metrics_derive::EncodeLabelSet;
 /// on a variant to customize. See [`macro@EncodeLabelSet`] for the list of
 /// supported `rename_all` values.
 pub use iroh_metrics_derive::EncodeLabelValue;
-
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -87,7 +85,6 @@ pub use iroh_metrics_derive::EncodeLabelValue;
 /// [`Iterable::metric_field_ref`]: iterable::Iterable::metric_field_ref
 /// [`Iterable::family_field_ref`]: iterable::Iterable::family_field_ref
 pub use iroh_metrics_derive::MetricsGroup;
-
 /// Derives [`MetricsGroupSet`] for a struct.
 ///
 /// All fields of the struct must be public and have a type of `Arc<SomeType>`,
