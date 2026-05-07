@@ -217,6 +217,7 @@ pub struct MetricsPushExporter {
 
 impl MetricsPushExporter {
     /// Spawns the push exporter in a background task.
+    #[allow(clippy::unused_async)]
     pub async fn spawn(cfg: MetricsExporterConfig, registry: impl MetricsSource) -> Self {
         let cancel = CancellationToken::new();
         let task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
