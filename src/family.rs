@@ -50,7 +50,7 @@ pub trait FamilyEncoder: Send + Sync + 'static {
     /// Schema items (when `schema` is `Some`) and values are pushed under a
     /// single read lock per family, so the two slices stay aligned even when
     /// other threads are inserting new label combinations concurrently.
-    fn encode_export(
+    fn encode_schema(
         &self,
         schema: Option<&mut Schema>,
         values: &mut Values,
@@ -121,14 +121,14 @@ impl<'a> FamilyItem<'a> {
     }
 
     /// Encodes the binary export of this family (schema and/or values).
-    pub fn encode_export(
+    pub fn encode_schema(
         &self,
         schema: Option<&mut Schema>,
         values: &mut Values,
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
-        self.family.encode_export(
+        self.family.encode_schema(
             schema,
             values,
             self.name,
@@ -448,7 +448,7 @@ where
         Ok(())
     }
 
-    fn encode_export(
+    fn encode_schema(
         &self,
         mut schema: Option<&mut Schema>,
         values: &mut Values,
@@ -586,7 +586,7 @@ where
         Ok(())
     }
 
-    fn encode_export(
+    fn encode_schema(
         &self,
         _schema: Option<&mut Schema>,
         _values: &mut Values,
@@ -795,7 +795,7 @@ mod tests {
         // Binary schema + values
         let mut schema = Schema::default();
         let mut values = Values::default();
-        FamilyEncoder::encode_export(
+        FamilyEncoder::encode_schema(
             &family,
             Some(&mut schema),
             &mut values,

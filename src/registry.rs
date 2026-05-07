@@ -122,13 +122,13 @@ impl Registry {
     /// schema and values together — and per-family under a single read lock —
     /// keeps the two flat slices aligned even under concurrent
     /// `Family::get_or_create` from other threads.
-    pub fn encode_export(
+    pub fn encode_schema(
         &self,
         mut schema: Option<&mut crate::encoding::Schema>,
         values: &mut crate::encoding::Values,
     ) {
         for group in &self.metrics {
-            group.encode_export(
+            group.encode_schema(
                 schema.as_deref_mut(),
                 values,
                 self.prefix.as_deref(),
@@ -137,7 +137,7 @@ impl Registry {
         }
 
         for sub in self.sub_registries.iter() {
-            sub.encode_export(schema.as_deref_mut(), values);
+            sub.encode_schema(schema.as_deref_mut(), values);
         }
     }
 }

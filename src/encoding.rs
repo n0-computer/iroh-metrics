@@ -603,7 +603,7 @@ impl Encoder {
     /// optionally the schema (if it has changed since the last export).
     ///
     /// Each family's schema items and values are pushed under a single read
-    /// lock per family (see `FamilyEncoder::encode_export`), so the two flat
+    /// lock per family (see `FamilyEncoder::encode_schema`), so the two flat
     /// slices are always internally consistent. We always build the schema
     /// up front and then decide whether to attach it based on the
     /// `schema_version` *after* the walk — this catches the case where a
@@ -619,7 +619,7 @@ impl Encoder {
             Schema::new_without_help()
         };
         let mut values = Values::default();
-        registry.encode_export(Some(&mut schema), &mut values);
+        registry.encode_schema(Some(&mut schema), &mut values);
 
         let end_version = registry.schema_version();
         self.last_schema_version = end_version;
@@ -636,7 +636,7 @@ impl Encoder {
 }
 
 impl dyn MetricsGroup {
-    pub(crate) fn encode_export<'a>(
+    pub(crate) fn encode_schema<'a>(
         &self,
         mut schema: Option<&mut Schema>,
         values: &mut Values,
@@ -657,7 +657,7 @@ impl dyn MetricsGroup {
             metric.encode_value(values);
         }
         for family in IntoIterable::family_iter(self) {
-            family.encode_export(schema.as_deref_mut(), values, prefixes, labels);
+            family.encode_schema(schema.as_deref_mut(), values, prefixes, labels);
         }
     }
 
