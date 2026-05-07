@@ -132,10 +132,7 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
+<a href="#134" id="134">134</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics library for iroh
 
 </span><span class="attr">#![deny(missing_docs, rustdoc::broken_intra_doc_links)]
 #![cfg_attr(iroh_docsrs, feature(doc_auto_cfg))]
@@ -190,7 +187,6 @@
 /// }
 /// ```
 </span><span class="kw">pub use </span>iroh_metrics_derive::EncodeLabelSet;
-
 <span class="doccomment">/// Derives [`EncodeLabelValue`] for an enum with only unit variants.
 ///
 /// Each variant becomes a string label; default casing is `snake_case`.
@@ -198,7 +194,6 @@
 /// on a variant to customize. See [`macro@EncodeLabelSet`] for the list of
 /// supported `rename_all` values.
 </span><span class="kw">pub use </span>iroh_metrics_derive::EncodeLabelValue;
-
 <span class="doccomment">/// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -224,7 +219,6 @@
 /// [`Iterable::metric_field_ref`]: iterable::Iterable::metric_field_ref
 /// [`Iterable::family_field_ref`]: iterable::Iterable::family_field_ref
 </span><span class="kw">pub use </span>iroh_metrics_derive::MetricsGroup;
-
 <span class="doccomment">/// Derives [`MetricsGroupSet`] for a struct.
 ///
 /// All fields of the struct must be public and have a type of `Arc&lt;SomeType&gt;`,
