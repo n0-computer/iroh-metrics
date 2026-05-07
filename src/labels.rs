@@ -51,7 +51,10 @@ macro_rules! impl_from_int {
     };
 }
 
-impl_from_int!(i64 => Int, i32 => Int, u64 => Uint, u32 => Uint, u16 => Uint);
+impl_from_int!(
+    i64 => Int, i32 => Int, i16 => Int, i8 => Int,
+    u64 => Uint, u32 => Uint, u16 => Uint, u8 => Uint
+);
 
 impl From<bool> for LabelValue<'static> {
     fn from(v: bool) -> Self {

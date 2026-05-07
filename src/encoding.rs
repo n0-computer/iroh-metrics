@@ -27,19 +27,46 @@ pub(crate) trait EncodeLabelTo {
 
 impl<T: AsRef<str> + ?Sized> EncodeLabelTo for T {
     fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
-        w.write_str(self.as_ref())
+        encode_escaped(w, self.as_ref(), true)
     }
 }
 
 impl EncodeLabelTo for LabelValue<'_> {
     fn encode_to<W: Write + ?Sized>(&self, w: &mut W) -> fmt::Result {
         match self {
-            LabelValue::Str(s) => w.write_str(s),
+            // Numeric and boolean variants don't need escaping.
+            LabelValue::Str(s) => encode_escaped(w, s, true),
             LabelValue::Int(v) => w.write_str(itoa::Buffer::new().format(*v)),
             LabelValue::Uint(v) => w.write_str(itoa::Buffer::new().format(*v)),
             LabelValue::Bool(v) => w.write_str(if *v { "true" } else { "false" }),
         }
     }
+}
+
+/// Writes `s` with OpenMetrics escaping: `\` → `\\` and `\n` → `\n` always,
+/// plus `"` → `\"` when `escape_quote` is set (label-value rules vs HELP-text
+/// rules).
+fn encode_escaped<W: Write + ?Sized>(w: &mut W, s: &str, escape_quote: bool) -> fmt::Result {
+    let mut start = 0;
+    for (idx, c) in s.char_indices() {
+        let replacement = match c {
+            '\\' => Some("\\\\"),
+            '\n' => Some("\\n"),
+            '"' if escape_quote => Some("\\\""),
+            _ => None,
+        };
+        if let Some(rep) = replacement {
+            if start < idx {
+                w.write_str(&s[start..idx])?;
+            }
+            w.write_str(rep)?;
+            start = idx + c.len_utf8();
+        }
+    }
+    if start < s.len() {
+        w.write_str(&s[start..])?;
+    }
+    Ok(())
 }
 
 pub(crate) fn encode_eof(writer: &mut impl Write) -> fmt::Result {
@@ -70,7 +97,17 @@ where
     match value {
         MetricValue::Counter(v) => {
             encode_prefix_name(writer, prefixes, name)?;
-            writer.write_str("_total")?;
+            // Counters require a `_total` suffix per the OpenMetrics spec.
+            // Skip if the encoded name already ends with `_total`. Two cases:
+            //   - `name` itself ends with `_total` (e.g. `requests_total`).
+            //   - `name` is exactly `total` and there is at least one prefix,
+            //     so the prefix's `_` separator turns the join into
+            //     `..._total`.
+            let already_total =
+                name.ends_with("_total") || (name == "total" && !prefixes.is_empty());
+            if !already_total {
+                writer.write_str("_total")?;
+            }
             encode_labels(writer, labels, extra_labels, None)?;
             writer.write_char(' ')?;
             encode_u64(writer, *v)?;
@@ -564,23 +601,29 @@ impl Encoder {
     ///
     /// Returns an [`Update`] containing the current metric values and
     /// optionally the schema (if it has changed since the last export).
+    ///
+    /// Each family's schema items and values are pushed under a single read
+    /// lock per family (see `FamilyEncoder::encode_export`), so the two flat
+    /// slices are always internally consistent. We always build the schema
+    /// up front and then decide whether to attach it based on the
+    /// `schema_version` *after* the walk — this catches the case where a
+    /// `Family::get_or_create` raced mid-walk and bumped the counter, so the
+    /// decoder gets a fresh schema instead of being stuck with a stale
+    /// cached one.
     pub fn export(&mut self) -> Update {
         let registry = self.registry.read().expect("poisoned");
-        let current = registry.schema_version();
-        let schema = if current != self.last_schema_version {
-            self.last_schema_version = current;
-            let mut schema = if self.opts.include_help {
-                Schema::default()
-            } else {
-                Schema::new_without_help()
-            };
-            registry.encode_schema(&mut schema);
-            Some(schema)
+        let last_seen = self.last_schema_version;
+        let mut schema = if self.opts.include_help {
+            Schema::default()
         } else {
-            None
+            Schema::new_without_help()
         };
         let mut values = Values::default();
-        registry.encode_values(&mut values);
+        registry.encode_export(Some(&mut schema), &mut values);
+
+        let end_version = registry.schema_version();
+        self.last_schema_version = end_version;
+        let schema = (end_version != last_seen).then_some(schema);
         Update { schema, values }
     }
 
@@ -593,9 +636,10 @@ impl Encoder {
 }
 
 impl dyn MetricsGroup {
-    pub(crate) fn encode_schema<'a>(
+    pub(crate) fn encode_export<'a>(
         &self,
-        schema: &mut Schema,
+        mut schema: Option<&mut Schema>,
+        values: &mut Values,
         prefix: Option<&'a str>,
         labels: &[(Cow<'a, str>, Cow<'a, str>)],
     ) {
@@ -606,20 +650,14 @@ impl dyn MetricsGroup {
             &[name]
         };
         for metric in self.iter() {
-            let labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
-            metric.encode_schema(schema, prefixes, labels);
-        }
-        for family in IntoIterable::family_iter(self) {
-            family.encode_schema(schema, prefixes, labels);
-        }
-    }
-
-    pub(crate) fn encode_values(&self, values: &mut Values) {
-        for metric in self.iter() {
+            if let Some(schema) = schema.as_deref_mut() {
+                let lbls = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
+                metric.encode_schema(schema, prefixes, lbls);
+            }
             metric.encode_value(values);
         }
         for family in IntoIterable::family_iter(self) {
-            family.encode_values(values);
+            family.encode_export(schema.as_deref_mut(), values, prefixes, labels);
         }
     }
 
@@ -747,11 +785,14 @@ pub(crate) fn encode_prefix_name(
     Ok(())
 }
 
-/// Writes `help` followed by `".\n"` — but skips the period if `help`
-/// already ends with `.`, `?` or `!`.
+/// Writes `help` followed by `".\n"` — but skips the period if the text
+/// already ends with `.`, `?` or `!` (ignoring trailing newlines, which the
+/// OpenMetrics escape turns into a literal `\n` token). Per the spec, `\`
+/// and `\n` inside `help` are escaped to `\\` and `\n`.
 pub(crate) fn encode_help_text(writer: &mut (impl Write + ?Sized), help: &str) -> fmt::Result {
-    writer.write_str(help)?;
-    if !matches!(help.chars().last(), Some('.') | Some('?') | Some('!')) {
+    encode_escaped(writer, help, false)?;
+    let trimmed = help.trim_end_matches('\n');
+    if !matches!(trimmed.chars().last(), Some('.') | Some('?') | Some('!')) {
         writer.write_str(".")?;
     }
     writer.write_str("\n")

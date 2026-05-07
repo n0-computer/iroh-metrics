@@ -45,18 +45,20 @@ pub trait FamilyEncoder: Send + Sync + 'static {
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) -> fmt::Result;
 
-    /// Encodes schema for binary encoding.
-    fn encode_schema(
+    /// Encodes the binary export of this family.
+    ///
+    /// Schema items (when `schema` is `Some`) and values are pushed under a
+    /// single read lock per family, so the two slices stay aligned even when
+    /// other threads are inserting new label combinations concurrently.
+    fn encode_export(
         &self,
-        schema: &mut Schema,
+        schema: Option<&mut Schema>,
+        values: &mut Values,
         name: &str,
         help: &str,
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     );
-
-    /// Encodes values for binary encoding. Order must match `encode_schema`.
-    fn encode_values(&self, values: &mut Values);
 
     /// Returns true if the family has no entries.
     fn is_empty(&self) -> bool;
@@ -118,20 +120,22 @@ impl<'a> FamilyItem<'a> {
             .encode_openmetrics(writer, self.name, self.help, prefixes, registry_labels)
     }
 
-    /// Encodes schema for binary encoding.
-    pub fn encode_schema(
+    /// Encodes the binary export of this family (schema and/or values).
+    pub fn encode_export(
         &self,
-        schema: &mut Schema,
+        schema: Option<&mut Schema>,
+        values: &mut Values,
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
-        self.family
-            .encode_schema(schema, self.name, self.help, prefixes, registry_labels);
-    }
-
-    /// Encodes values for binary encoding.
-    pub fn encode_values(&self, values: &mut Values) {
-        self.family.encode_values(values);
+        self.family.encode_export(
+            schema,
+            values,
+            self.name,
+            self.help,
+            prefixes,
+            registry_labels,
+        );
     }
 
     /// Attaches a schema-version counter to the underlying family.
@@ -147,6 +151,21 @@ impl<'a> FamilyItem<'a> {
 #[cfg(feature = "metrics")]
 type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
 
+/// One entry in a [`Family`]: the metric plus the rendered label strings
+/// computed once at insert time.
+#[cfg(feature = "metrics")]
+struct FamilyEntry<M> {
+    metric: Arc<M>,
+    /// Cached `(name, value-as-string)` pairs, rendered from the
+    /// `LabelValue` enum once at insert time so the scrape hot path doesn't
+    /// reallocate per-series. The strings are RAW — OpenMetrics escaping is
+    /// NOT applied here; it happens at write time via `EncodeLabelTo` for the
+    /// text path and via the same path on the decoder side for the binary
+    /// export. Do not emit these directly to a wire format that requires
+    /// escaping.
+    encoded_labels: Vec<(&'static str, String)>,
+}
+
 /// A family of metrics indexed by labels.
 ///
 /// Thread-safe: multiple threads can look up or create metrics concurrently.
@@ -157,7 +176,7 @@ where
     L: EncodeLabelSet,
     M: Metric,
 {
-    inner: Arc<RwLock<HashMap<L, Arc<M>>>>,
+    inner: Arc<RwLock<HashMap<L, FamilyEntry<M>>>>,
     constructor: Constructor<M>,
     // Set once when the parent group is registered. Bumped on each new label
     // combo so the binary encoder re-publishes the schema.
@@ -221,17 +240,28 @@ where
     /// where the label set is stable, hold on to the returned `Arc<M>` and
     /// reuse it instead of calling `get_or_create` on every record.
     pub fn get_or_create(&self, labels: &L) -> Arc<M> {
-        if let Some(metric) = self.inner.read().expect("poisoned").get(labels) {
-            return Arc::clone(metric);
+        if let Some(entry) = self.inner.read().expect("poisoned").get(labels) {
+            return Arc::clone(&entry.metric);
         }
 
         let mut guard = self.inner.write().expect("poisoned");
-        if let Some(metric) = guard.get(labels) {
-            return Arc::clone(metric);
+        if let Some(entry) = guard.get(labels) {
+            return Arc::clone(&entry.metric);
         }
 
         let metric = Arc::new((self.constructor)());
-        guard.insert(labels.clone(), Arc::clone(&metric));
+        let encoded_labels = labels
+            .encode_label_pairs()
+            .into_iter()
+            .map(|(k, v)| (k, v.as_str().into_owned()))
+            .collect();
+        guard.insert(
+            labels.clone(),
+            FamilyEntry {
+                metric: Arc::clone(&metric),
+                encoded_labels,
+            },
+        );
         if let Some(v) = self.schema_version.get() {
             v.fetch_add(1, Ordering::Relaxed);
         }
@@ -244,12 +274,16 @@ where
             .read()
             .expect("poisoned")
             .get(labels)
-            .map(Arc::clone)
+            .map(|entry| Arc::clone(&entry.metric))
     }
 
     /// Removes the metric for the given labels.
     pub fn remove(&self, labels: &L) -> Option<Arc<M>> {
-        self.inner.write().expect("poisoned").remove(labels)
+        self.inner
+            .write()
+            .expect("poisoned")
+            .remove(labels)
+            .map(|entry| entry.metric)
     }
 
     /// Removes all metrics.
@@ -390,7 +424,7 @@ where
         let mut entries: Vec<_> = guard.iter().collect();
         entries.sort_by_key(|(a, _)| *a);
 
-        let metric_type = entries[0].1.r#type();
+        let metric_type = entries[0].1.metric.r#type();
 
         writer.write_str("# HELP ")?;
         encode_prefix_name(writer, prefixes, name)?;
@@ -401,52 +435,46 @@ where
         encode_prefix_name(writer, prefixes, name)?;
         writeln!(writer, " {}", metric_type.as_str())?;
 
-        for (label_set, metric) in entries {
-            let pairs = label_set.encode_label_pairs();
+        for (_labels, entry) in entries {
             encode_metric_value(
                 writer,
                 name,
                 prefixes,
                 registry_labels,
-                &pairs,
-                &metric.value(),
+                &entry.encoded_labels,
+                &entry.metric.value(),
             )?;
         }
         Ok(())
     }
 
-    fn encode_schema(
+    fn encode_export(
         &self,
-        schema: &mut Schema,
+        mut schema: Option<&mut Schema>,
+        values: &mut Values,
         name: &str,
         help: &str,
         prefixes: &[&str],
         registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
+        // Hold the read lock for the whole pass so the schema items and the
+        // values stay aligned even when other threads call `get_or_create`.
         let guard = self.inner.read().expect("poisoned");
         let mut entries: Vec<_> = guard.iter().collect();
         entries.sort_by_key(|(a, _)| *a);
 
-        for (labels, metric) in entries {
-            let pairs = labels.encode_label_pairs();
-            let all_labels = registry_labels
-                .iter()
-                .map(|(k, v)| (k.as_ref(), v.as_ref().into()))
-                .chain(pairs.iter().map(|(k, v)| (*k, v.as_str())));
-            schema.push(
-                ItemSchema::from_label_iter(name, prefixes, all_labels, metric.r#type()),
-                help,
-            );
-        }
-    }
-
-    fn encode_values(&self, values: &mut Values) {
-        let guard = self.inner.read().expect("poisoned");
-        let mut entries: Vec<_> = guard.iter().collect();
-        entries.sort_by_key(|(a, _)| *a);
-
-        for (_, metric) in entries {
-            values.items.push(metric.value());
+        for (_labels, entry) in entries {
+            if let Some(schema) = schema.as_deref_mut() {
+                let all_labels = registry_labels
+                    .iter()
+                    .map(|(k, v)| (k.as_ref(), v.as_ref()))
+                    .chain(entry.encoded_labels.iter().map(|(k, v)| (*k, v.as_str())));
+                schema.push(
+                    ItemSchema::from_label_iter(name, prefixes, all_labels, entry.metric.r#type()),
+                    help,
+                );
+            }
+            values.items.push(entry.metric.value());
         }
     }
 
@@ -488,8 +516,8 @@ where
         entries.sort_by_key(|(a, _)| *a);
 
         let mut seq = serializer.serialize_seq(Some(entries.len()))?;
-        for (labels, metric) in entries {
-            seq.serialize_element(&(labels, metric.value()))?;
+        for (labels, entry) in entries {
+            seq.serialize_element(&(labels, entry.metric.value()))?;
         }
         seq.end()
     }
@@ -509,7 +537,18 @@ where
             for (labels, value) in entries {
                 let metric = Arc::new(M::default());
                 metric.set_value(value);
-                guard.insert(labels, metric);
+                let encoded_labels = labels
+                    .encode_label_pairs()
+                    .into_iter()
+                    .map(|(k, v)| (k, v.as_str().into_owned()))
+                    .collect();
+                guard.insert(
+                    labels,
+                    FamilyEntry {
+                        metric,
+                        encoded_labels,
+                    },
+                );
             }
         }
         Ok(family)
@@ -547,17 +586,16 @@ where
         Ok(())
     }
 
-    fn encode_schema(
+    fn encode_export(
         &self,
-        _schema: &mut Schema,
+        _schema: Option<&mut Schema>,
+        _values: &mut Values,
         _name: &str,
         _help: &str,
         _prefixes: &[&str],
         _registry_labels: &[(Cow<'_, str>, Cow<'_, str>)],
     ) {
     }
-
-    fn encode_values(&self, _values: &mut Values) {}
 
     fn is_empty(&self) -> bool {
         true
@@ -756,18 +794,57 @@ mod tests {
 
         // Binary schema + values
         let mut schema = Schema::default();
-        FamilyEncoder::encode_schema(
+        let mut values = Values::default();
+        FamilyEncoder::encode_export(
             &family,
-            &mut schema,
+            Some(&mut schema),
+            &mut values,
             "requests",
             "HTTP requests",
             &["http"],
             &[],
         );
         assert_eq!(schema.items.len(), 2);
-
-        let mut values = Values::default();
-        FamilyEncoder::encode_values(&family, &mut values);
         assert_eq!(values.items.len(), 2);
+    }
+
+    #[test]
+    fn test_openmetrics_escapes_specials() {
+        // Label values with `"`, `\`, `\n` and HELP text with `\`, `\n` must
+        // round-trip through the OpenMetrics text format without corrupting
+        // the syntax.
+        let family: Family<TestLabels, Counter> = Family::new();
+        family
+            .get_or_create(&TestLabels {
+                method: "a\"b\\c\nd".into(),
+                status: 200,
+            })
+            .inc();
+
+        let mut out = String::new();
+        FamilyEncoder::encode_openmetrics(
+            &family,
+            &mut out,
+            "requests",
+            "Quote: \" backslash: \\ newline:\nend",
+            &["http"],
+            &[],
+        )
+        .unwrap();
+
+        // Label value escaped.
+        assert!(
+            out.contains(r#"method="a\"b\\c\nd""#),
+            "expected escaped label value, got: {out}",
+        );
+        // Help text escaped (backslash + newline). Quote left as-is in HELP.
+        assert!(
+            out.contains(r"backslash: \\ newline:\nend"),
+            "expected escaped help, got: {out}",
+        );
+        assert!(
+            !out.contains("newline:\nend"),
+            "raw newline must be escaped: {out}",
+        );
     }
 }

@@ -115,25 +115,29 @@ impl Registry {
         self.schema_version.load(Ordering::Relaxed)
     }
 
-    /// Encodes the schema of all registered metrics into the provided schema builder.
-    pub fn encode_schema(&self, schema: &mut crate::encoding::Schema) {
+    /// Encodes the binary export of all registered metrics.
+    ///
+    /// `schema` is `Some` when the encoder needs a fresh schema this round
+    /// (because `schema_version` changed) and `None` otherwise. Walking
+    /// schema and values together — and per-family under a single read lock —
+    /// keeps the two flat slices aligned even under concurrent
+    /// `Family::get_or_create` from other threads.
+    pub fn encode_export(
+        &self,
+        mut schema: Option<&mut crate::encoding::Schema>,
+        values: &mut crate::encoding::Values,
+    ) {
         for group in &self.metrics {
-            group.encode_schema(schema, self.prefix.as_deref(), &self.labels);
+            group.encode_export(
+                schema.as_deref_mut(),
+                values,
+                self.prefix.as_deref(),
+                &self.labels,
+            );
         }
 
         for sub in self.sub_registries.iter() {
-            sub.encode_schema(schema);
-        }
-    }
-
-    /// Encodes the current values of all registered metrics into the provided values builder.
-    pub fn encode_values(&self, values: &mut crate::encoding::Values) {
-        for group in &self.metrics {
-            group.encode_values(values);
-        }
-
-        for sub in self.sub_registries.iter() {
-            sub.encode_values(values);
+            sub.encode_export(schema.as_deref_mut(), values);
         }
     }
 }
