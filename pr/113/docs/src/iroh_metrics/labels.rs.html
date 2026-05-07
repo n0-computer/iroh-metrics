@@ -254,7 +254,10 @@
 <a href="#253" id="253">253</a>
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a></pre></div><pre class="rust"><code><span class="doccomment">//! Label types for metric families.
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a></pre></div><pre class="rust"><code><span class="doccomment">//! Label types for metric families.
 
 </span><span class="kw">use </span>std::{borrow::Cow, hash::Hash};
 
@@ -307,7 +310,10 @@
     };
 }
 
-<span class="macro">impl_from_int!</span>(i64 =&gt; Int, i32 =&gt; Int, u64 =&gt; Uint, u32 =&gt; Uint, u16 =&gt; Uint);
+<span class="macro">impl_from_int!</span>(
+    i64 =&gt; Int, i32 =&gt; Int, i16 =&gt; Int, i8 =&gt; Int,
+    u64 =&gt; Uint, u32 =&gt; Uint, u16 =&gt; Uint, u8 =&gt; Uint
+);
 
 <span class="kw">impl </span>From&lt;bool&gt; <span class="kw">for </span>LabelValue&lt;<span class="lifetime">'static</span>&gt; {
     <span class="kw">fn </span>from(v: bool) -&gt; <span class="self">Self </span>{

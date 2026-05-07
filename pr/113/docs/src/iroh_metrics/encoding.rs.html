@@ -758,7 +758,51 @@
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a></pre></div><pre class="rust"><code><span class="doccomment">//! Functions to encode metrics into the [OpenMetrics text format].
 //!
 //! [OpenMetrics text format]: https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md
 
@@ -787,19 +831,46 @@
 
 <span class="kw">impl</span>&lt;T: AsRef&lt;str&gt; + <span class="question-mark">?</span>Sized&gt; EncodeLabelTo <span class="kw">for </span>T {
     <span class="kw">fn </span>encode_to&lt;W: Write + <span class="question-mark">?</span>Sized&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; fmt::Result {
-        w.write_str(<span class="self">self</span>.as_ref())
+        encode_escaped(w, <span class="self">self</span>.as_ref(), <span class="bool-val">true</span>)
     }
 }
 
 <span class="kw">impl </span>EncodeLabelTo <span class="kw">for </span>LabelValue&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>encode_to&lt;W: Write + <span class="question-mark">?</span>Sized&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; fmt::Result {
         <span class="kw">match </span><span class="self">self </span>{
-            LabelValue::Str(s) =&gt; w.write_str(s),
+            <span class="comment">// Numeric and boolean variants don't need escaping.
+            </span>LabelValue::Str(s) =&gt; encode_escaped(w, s, <span class="bool-val">true</span>),
             LabelValue::Int(v) =&gt; w.write_str(itoa::Buffer::new().format(<span class="kw-2">*</span>v)),
             LabelValue::Uint(v) =&gt; w.write_str(itoa::Buffer::new().format(<span class="kw-2">*</span>v)),
             LabelValue::Bool(v) =&gt; w.write_str(<span class="kw">if </span><span class="kw-2">*</span>v { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>}),
         }
     }
+}
+
+<span class="doccomment">/// Writes `s` with OpenMetrics escaping: `\` → `\\` and `\n` → `\n` always,
+/// plus `"` → `\"` when `escape_quote` is set (label-value rules vs HELP-text
+/// rules).
+</span><span class="kw">fn </span>encode_escaped&lt;W: Write + <span class="question-mark">?</span>Sized&gt;(w: <span class="kw-2">&amp;mut </span>W, s: <span class="kw-2">&amp;</span>str, escape_quote: bool) -&gt; fmt::Result {
+    <span class="kw">let </span><span class="kw-2">mut </span>start = <span class="number">0</span>;
+    <span class="kw">for </span>(idx, c) <span class="kw">in </span>s.char_indices() {
+        <span class="kw">let </span>replacement = <span class="kw">match </span>c {
+            <span class="string">'\\' </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"\\\\"</span>),
+            <span class="string">'\n' </span>=&gt; <span class="prelude-val">Some</span>(<span class="string">"\\n"</span>),
+            <span class="string">'"' </span><span class="kw">if </span>escape_quote =&gt; <span class="prelude-val">Some</span>(<span class="string">"\\\""</span>),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+        };
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(rep) = replacement {
+            <span class="kw">if </span>start &lt; idx {
+                w.write_str(<span class="kw-2">&amp;</span>s[start..idx])<span class="question-mark">?</span>;
+            }
+            w.write_str(rep)<span class="question-mark">?</span>;
+            start = idx + c.len_utf8();
+        }
+    }
+    <span class="kw">if </span>start &lt; s.len() {
+        w.write_str(<span class="kw-2">&amp;</span>s[start..])<span class="question-mark">?</span>;
+    }
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_eof(writer: <span class="kw-2">&amp;mut </span><span class="kw">impl </span>Write) -&gt; fmt::Result {
@@ -830,7 +901,17 @@
     <span class="kw">match </span>value {
         MetricValue::Counter(v) =&gt; {
             encode_prefix_name(writer, prefixes, name)<span class="question-mark">?</span>;
-            writer.write_str(<span class="string">"_total"</span>)<span class="question-mark">?</span>;
+            <span class="comment">// Counters require a `_total` suffix per the OpenMetrics spec.
+            // Skip if the encoded name already ends with `_total`. Two cases:
+            //   - `name` itself ends with `_total` (e.g. `requests_total`).
+            //   - `name` is exactly `total` and there is at least one prefix,
+            //     so the prefix's `_` separator turns the join into
+            //     `..._total`.
+            </span><span class="kw">let </span>already_total =
+                name.ends_with(<span class="string">"_total"</span>) || (name == <span class="string">"total" </span>&amp;&amp; !prefixes.is_empty());
+            <span class="kw">if </span>!already_total {
+                writer.write_str(<span class="string">"_total"</span>)<span class="question-mark">?</span>;
+            }
             encode_labels(writer, labels, extra_labels, <span class="prelude-val">None</span>)<span class="question-mark">?</span>;
             writer.write_char(<span class="string">' '</span>)<span class="question-mark">?</span>;
             encode_u64(writer, <span class="kw-2">*</span>v)<span class="question-mark">?</span>;
@@ -1325,23 +1406,32 @@
     ///
     /// Returns an [`Update`] containing the current metric values and
     /// optionally the schema (if it has changed since the last export).
+    ///
+    /// Each family's schema items and values are pushed under a single read
+    /// lock per family (see `FamilyEncoder::encode_schema`), so the two flat
+    /// slices are always internally consistent. We capture the version
+    /// *before* the walk and advance `last_schema_version` only that far —
+    /// any insert that races between two families' walks bumps the version
+    /// past `start_version`, forcing the *next* export to re-publish a
+    /// schema that matches the values it sends. Advancing past the captured
+    /// version would let the next round skip publishing while the values
+    /// list has already grown, leaving the decoder one entry behind for
+    /// every later item.
     </span><span class="kw">pub fn </span>export(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Update {
         <span class="kw">let </span>registry = <span class="self">self</span>.registry.read().expect(<span class="string">"poisoned"</span>);
-        <span class="kw">let </span>current = registry.schema_version();
-        <span class="kw">let </span>schema = <span class="kw">if </span>current != <span class="self">self</span>.last_schema_version {
-            <span class="self">self</span>.last_schema_version = current;
-            <span class="kw">let </span><span class="kw-2">mut </span>schema = <span class="kw">if </span><span class="self">self</span>.opts.include_help {
-                Schema::default()
-            } <span class="kw">else </span>{
-                Schema::new_without_help()
-            };
-            registry.encode_schema(<span class="kw-2">&amp;mut </span>schema);
-            <span class="prelude-val">Some</span>(schema)
+        <span class="kw">let </span>last_seen = <span class="self">self</span>.last_schema_version;
+        <span class="kw">let </span>start_version = registry.schema_version();
+        <span class="kw">let </span><span class="kw-2">mut </span>schema = <span class="kw">if </span><span class="self">self</span>.opts.include_help {
+            Schema::default()
         } <span class="kw">else </span>{
-            <span class="prelude-val">None
-        </span>};
+            Schema::new_without_help()
+        };
         <span class="kw">let </span><span class="kw-2">mut </span>values = Values::default();
-        registry.encode_values(<span class="kw-2">&amp;mut </span>values);
+        registry.encode_schema(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;mut </span>schema), <span class="kw-2">&amp;mut </span>values);
+
+        <span class="kw">let </span>end_version = registry.schema_version();
+        <span class="self">self</span>.last_schema_version = start_version;
+        <span class="kw">let </span>schema = (end_version != last_seen).then_some(schema);
         Update { schema, values }
     }
 
@@ -1357,7 +1447,8 @@
 <span class="kw">impl dyn </span>MetricsGroup {
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_schema&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        schema: <span class="kw-2">&amp;mut </span>Schema,
+        <span class="kw-2">mut </span>schema: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>Schema&gt;,
+        values: <span class="kw-2">&amp;mut </span>Values,
         prefix: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
         labels: <span class="kw-2">&amp;</span>[(Cow&lt;<span class="lifetime">'a</span>, str&gt;, Cow&lt;<span class="lifetime">'a</span>, str&gt;)],
     ) {
@@ -1368,20 +1459,14 @@
             <span class="kw-2">&amp;</span>[name]
         };
         <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter() {
-            <span class="kw">let </span>labels = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
-            metric.encode_schema(schema, prefixes, labels);
-        }
-        <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
-            family.encode_schema(schema, prefixes, labels);
-        }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_values(<span class="kw-2">&amp;</span><span class="self">self</span>, values: <span class="kw-2">&amp;mut </span>Values) {
-        <span class="kw">for </span>metric <span class="kw">in </span><span class="self">self</span>.iter() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(schema) = schema.as_deref_mut() {
+                <span class="kw">let </span>lbls = labels.iter().map(|(k, v)| (k.as_ref(), v.as_ref()));
+                metric.encode_schema(schema, prefixes, lbls);
+            }
             metric.encode_value(values);
         }
         <span class="kw">for </span>family <span class="kw">in </span>IntoIterable::family_iter(<span class="self">self</span>) {
-            family.encode_values(values);
+            family.encode_schema(schema.as_deref_mut(), values, prefixes, labels);
         }
     }
 
@@ -1509,11 +1594,14 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Writes `help` followed by `".\n"` — but skips the period if `help`
-/// already ends with `.`, `?` or `!`.
+<span class="doccomment">/// Writes `help` followed by `".\n"` — but skips the period if the text
+/// already ends with `.`, `?` or `!` (ignoring trailing newlines, which the
+/// OpenMetrics escape turns into a literal `\n` token). Per the spec, `\`
+/// and `\n` inside `help` are escaped to `\\` and `\n`.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>encode_help_text(writer: <span class="kw-2">&amp;mut </span>(<span class="kw">impl </span>Write + <span class="question-mark">?</span>Sized), help: <span class="kw-2">&amp;</span>str) -&gt; fmt::Result {
-    writer.write_str(help)<span class="question-mark">?</span>;
-    <span class="kw">if </span>!<span class="macro">matches!</span>(help.chars().last(), <span class="prelude-val">Some</span>(<span class="string">'.'</span>) | <span class="prelude-val">Some</span>(<span class="string">'?'</span>) | <span class="prelude-val">Some</span>(<span class="string">'!'</span>)) {
+    encode_escaped(writer, help, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trimmed = help.trim_end_matches(<span class="string">'\n'</span>);
+    <span class="kw">if </span>!<span class="macro">matches!</span>(trimmed.chars().last(), <span class="prelude-val">Some</span>(<span class="string">'.'</span>) | <span class="prelude-val">Some</span>(<span class="string">'?'</span>) | <span class="prelude-val">Some</span>(<span class="string">'!'</span>)) {
         writer.write_str(<span class="string">"."</span>)<span class="question-mark">?</span>;
     }
     writer.write_str(<span class="string">"\n"</span>)
