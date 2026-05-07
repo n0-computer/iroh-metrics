@@ -439,6 +439,7 @@ impl Decoder {
     /// Imports a metric update from serialized bytes.
     ///
     /// Deserializes the bytes using postcard and imports the resulting update.
+    #[cfg(feature = "postcard")]
     pub fn import_bytes(&mut self, data: &[u8]) -> Result<(), postcard::Error> {
         let update = postcard::from_bytes(data)?;
         self.import(update);
@@ -587,6 +588,7 @@ impl Encoder {
     /// Exports the current state of the registry as serialized bytes.
     ///
     /// Returns the serialized bytes of an [`Update`] using postcard encoding.
+    #[cfg(feature = "postcard")]
     pub fn export_bytes(&mut self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_stdvec(&self.export())
     }
