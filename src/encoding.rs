@@ -395,7 +395,7 @@ impl Item<'_> {
     /// Writes the metric in OpenMetrics text format to the provided writer.
     /// Always includes `# HELP` and `# TYPE` headers — if you are iterating
     /// items yourself across a family of metrics, prefer
-    /// [`MetricsSource::encode_openmetrics`](crate::MetricsSource::encode_openmetrics)
+    /// [`MetricsSource::encode_openmetrics`]
     /// on the [`Decoder`], which deduplicates headers across same-named items.
     pub fn encode_openmetrics(
         &self,

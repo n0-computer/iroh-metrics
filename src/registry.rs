@@ -171,7 +171,7 @@ impl MetricsSource for Registry {
 /// A cloneable [`Registry`] in a read-write lock.
 ///
 /// Useful if you need mutable access to a registry, while also using the services
-/// defined in [`crate::service`].
+/// defined in `crate::service`.
 pub type RwLockRegistry = Arc<RwLock<Registry>>;
 
 impl MetricsSource for RwLockRegistry {
