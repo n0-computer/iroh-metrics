@@ -1001,7 +1001,8 @@
 <a href="#1000" id="1000">1000</a>
 <a href="#1001" id="1001">1001</a>
 <a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metric families with labels.
 //!
 //! A [`Family`] is a collection of metrics indexed by label sets. Labels
 //! should be low cardinality: each unique combination becomes a separate
@@ -1852,6 +1853,7 @@
     }
 
     <span class="attr">#[test]
+    #[cfg(feature = <span class="string">"postcard"</span>)]
     </span><span class="kw">fn </span>export_after_mid_walk_insert_keeps_schema_aligned() {
         <span class="comment">// Regression for the version-tracking race in `Encoder::export`:
         // advancing `last_schema_version` to the *post-walk* version
