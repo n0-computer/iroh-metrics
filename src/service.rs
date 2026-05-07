@@ -196,17 +196,11 @@ async fn dumper_loop(
             error!("metrics dumper failed: {err:#}");
             return;
         }
-        if write_header {
-            write_header = false;
-            if cancel.is_cancelled() {
-                break;
-            }
-        } else {
-            tokio::select! {
-                biased;
-                () = cancel.cancelled() => break,
-                () = tokio::time::sleep(interval) => {}
-            }
+        write_header = false;
+        tokio::select! {
+            biased;
+            () = cancel.cancelled() => break,
+            () = tokio::time::sleep(interval) => {}
         }
     }
 }
@@ -235,7 +229,7 @@ impl MetricsPushExporter {
     /// Gracefully shuts down the exporter.
     ///
     /// Stops between push cycles, letting the current push finish before
-    /// returning.
+    /// returning. Wrap in [`tokio::time::timeout`] to bound the wait.
     pub async fn shutdown(self) {
         self.cancel.cancel();
         let _ = self.task.await;
@@ -271,6 +265,7 @@ async fn exporter_loop(
             () = cancel.cancelled() => break,
             () = tokio::time::sleep(interval) => {}
         }
+
         let buf = match registry.encode_openmetrics_to_string() {
             Ok(buf) => buf,
             Err(err) => {
@@ -294,9 +289,15 @@ async fn exporter_loop(
                 debug!("pushed metrics to gateway");
             }
             _ => {
-                warn!("failed to push metrics to gateway: {:?}", res);
-                let body = res.text().await.unwrap();
-                warn!("error body: {}", body);
+                let status = res.status();
+                match res.text().await {
+                    Ok(body) => warn!("failed to push metrics to gateway: {status} {body}"),
+                    Err(err) => {
+                        warn!(
+                            "failed to push metrics to gateway: {status}; reading body failed: {err:#}"
+                        )
+                    }
+                }
             }
         }
     }
