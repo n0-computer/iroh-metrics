@@ -547,7 +547,8 @@
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
 <a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
 //!
 //! Each service runs in a single background task that is aborted when the
 //! returned handle is dropped.
@@ -766,6 +767,7 @@
 
 <span class="kw">impl </span>MetricsPushExporter {
     <span class="doccomment">/// Spawns the push exporter in a background task.
+    </span><span class="attr">#[allow(clippy::unused_async)]
     </span><span class="kw">pub async fn </span>spawn(cfg: MetricsExporterConfig, registry: <span class="kw">impl </span>MetricsSource) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>cancel = CancellationToken::new();
         <span class="kw">let </span>task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
