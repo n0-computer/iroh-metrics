@@ -36,9 +36,9 @@ impl MetricsServer {
         addr: SocketAddr,
         registry: impl MetricsSource + Clone,
     ) -> std::io::Result<Self> {
-        info!("Starting metrics server on {addr}");
         let listener = TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
+        info!("Starting metrics server on {addr}");
         let cancel = CancellationToken::new();
         let task = tokio::spawn(server_loop(listener, registry, cancel.clone()));
         Ok(Self {
@@ -217,7 +217,7 @@ pub struct MetricsPushExporter {
 
 impl MetricsPushExporter {
     /// Spawns the push exporter in a background task.
-    pub fn spawn(cfg: MetricsExporterConfig, registry: impl MetricsSource) -> Self {
+    pub async fn spawn(cfg: MetricsExporterConfig, registry: impl MetricsSource) -> Self {
         let cancel = CancellationToken::new();
         let task = tokio::spawn(exporter_loop(cfg, registry, cancel.clone()));
         Self {
@@ -534,7 +534,7 @@ mod tests {
             tls_config: None,
         };
 
-        let exporter = MetricsPushExporter::spawn(cfg, registry());
+        let exporter = MetricsPushExporter::spawn(cfg, registry()).await;
 
         let (path, body) = tokio::time::timeout(Duration::from_secs(5), rx)
             .await
