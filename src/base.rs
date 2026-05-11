@@ -702,7 +702,7 @@ combined_bar_count_total{x="y"} 10
     fn test_family_in_metrics_group() {
         use std::borrow::Cow;
 
-        use iroh_metrics_derive::MetricsGroup;
+        use n0_metrics_derive::MetricsGroup;
 
         use crate::{Family, LabelPair, LabelValue, NoLabels};
 
@@ -774,7 +774,7 @@ combined_bar_count_total{x="y"} 10
     mod family_tests {
         use std::sync::{Arc, RwLock};
 
-        use iroh_metrics_derive::MetricsGroup;
+        use n0_metrics_derive::MetricsGroup;
 
         use crate::{
             Counter, Family, MetricsSource, Registry,
@@ -783,7 +783,7 @@ combined_bar_count_total{x="y"} 10
         };
 
         #[derive(
-            Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, iroh_metrics::EncodeLabelSet,
+            Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, n0_metrics::EncodeLabelSet,
         )]
         struct Proto {
             proto: String,

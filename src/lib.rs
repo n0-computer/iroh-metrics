@@ -42,7 +42,7 @@ pub mod static_core;
 /// # Example
 ///
 /// ```
-/// use iroh_metrics::EncodeLabelSet;
+/// use n0_metrics::EncodeLabelSet;
 ///
 /// #[derive(Clone, Hash, PartialEq, Eq, EncodeLabelSet)]
 /// #[label(rename_all = "kebab-case")]
@@ -52,14 +52,14 @@ pub mod static_core;
 ///     status: u16,
 /// }
 /// ```
-pub use iroh_metrics_derive::EncodeLabelSet;
+pub use n0_metrics_derive::EncodeLabelSet;
 /// Derives [`EncodeLabelValue`] for an enum with only unit variants.
 ///
 /// Each variant becomes a string label; default casing is `snake_case`.
 /// Use `#[label(rename_all = "...")]` on the enum or `#[label(name = "...")]`
 /// on a variant to customize. See [`macro@EncodeLabelSet`] for the list of
 /// supported `rename_all` values.
-pub use iroh_metrics_derive::EncodeLabelValue;
+pub use n0_metrics_derive::EncodeLabelValue;
 /// Derives [`MetricsGroup`] and [`Iterable`].
 ///
 /// This derive macro only works on structs with named fields.
@@ -78,21 +78,21 @@ pub use iroh_metrics_derive::EncodeLabelValue;
 /// It will also generate a [`Iterable`] impl. Fields with the `Family<_, _>`
 /// type are routed through [`Iterable::family_field_ref`] instead of
 /// [`Iterable::metric_field_ref`]. Detection inspects the last segment of
-/// the field type, so `iroh_metrics::Family<L, M>` is recognized but a type
+/// the field type, so `n0_metrics::Family<L, M>` is recognized but a type
 /// alias is not — annotate the field with `#[metrics(family)]` in that case.
 ///
 /// [`Iterable`]: iterable::Iterable
 /// [`Iterable::metric_field_ref`]: iterable::Iterable::metric_field_ref
 /// [`Iterable::family_field_ref`]: iterable::Iterable::family_field_ref
-pub use iroh_metrics_derive::MetricsGroup;
+pub use n0_metrics_derive::MetricsGroup;
 /// Derives [`MetricsGroupSet`] for a struct.
 ///
 /// All fields of the struct must be public and have a type of `Arc<SomeType>`,
 /// where `SomeType` implements `MetricsGroup`.
-pub use iroh_metrics_derive::MetricsGroupSet;
+pub use n0_metrics_derive::MetricsGroupSet;
 
 // This lets us use the derive metrics in the lib tests within this crate.
-extern crate self as iroh_metrics;
+extern crate self as n0_metrics;
 
 use std::collections::HashMap;
 

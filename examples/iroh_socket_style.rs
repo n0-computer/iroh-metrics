@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use iroh_metrics::{
+use n0_metrics::{
     Counter, EncodeLabelSet, EncodeLabelValue, Family, MetricsGroup, MetricsSource, Registry,
 };
 use serde::{Deserialize, Serialize};

@@ -467,7 +467,7 @@ mod tests {
     #[tokio::test]
     async fn smoke_metrics_dumper() {
         let path = std::env::temp_dir().join(format!(
-            "iroh-metrics-smoke-dumper-{}.csv",
+            "n0-metrics-smoke-dumper-{}.csv",
             std::process::id()
         ));
         let _ = std::fs::remove_file(&path);

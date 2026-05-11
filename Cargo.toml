@@ -1,15 +1,15 @@
 [workspace]
-members = ["iroh-metrics-derive"]
+members = ["n0-metrics-derive"]
 
 [package]
-name = "iroh-metrics"
+name = "n0-metrics"
 version = "1.0.0-rc.0"
 edition = "2024"
 readme = "README.md"
 description = "metrics for iroh"
 license = "MIT OR Apache-2.0"
 authors = ["arqu <asmir@n0.computer>", "n0 team"]
-repository = "https://github.com/n0-computer/iroh-metrics"
+repository = "https://github.com/n0-computer/n0-metrics"
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
 rust-version = "1.85"
@@ -30,7 +30,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(iroh_docsrs)"] }
 unused-async = "warn"
 
 [dependencies]
-iroh-metrics-derive = { path = "./iroh-metrics-derive", version = "1.0.0-rc.0" }
+n0-metrics-derive = { path = "./n0-metrics-derive", version = "1.0.0-rc.0" }
 itoa = "1"
 ryu = "1"
 portable-atomic = { version = "1", features = ["serde"] }

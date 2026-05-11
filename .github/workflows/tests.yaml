@@ -23,7 +23,7 @@ env:
   RUSTFLAGS: -Dwarnings
   RUSTDOCFLAGS: -Dwarnings
   SCCACHE_CACHE_SIZE: "10G"
-  CRATES_LIST: "iroh-metrics"
+  CRATES_LIST: "n0-metrics"
   IROH_FORCE_STAGING_RELAYS: "1"
 
 jobs:

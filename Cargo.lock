@@ -531,40 +531,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-metrics"
-version = "1.0.0-rc.0"
-dependencies = [
- "erased_set",
- "http-body-util",
- "hyper",
- "hyper-util",
- "iroh-metrics-derive",
- "itoa",
- "n0-error",
- "portable-atomic",
- "postcard",
- "prometheus-parse",
- "reqwest",
- "rustls",
- "rustls-platform-verifier",
- "ryu",
- "serde",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "iroh-metrics-derive"
-version = "1.0.0-rc.0"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -698,6 +664,40 @@ version = "1.0.0-rc.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "565305a21e6b3bf26640ad98f05a0fda12d3ab4315394566b52a7bddb8b34828"
 dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "n0-metrics"
+version = "1.0.0-rc.0"
+dependencies = [
+ "erased_set",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "itoa",
+ "n0-error",
+ "n0-metrics-derive",
+ "portable-atomic",
+ "postcard",
+ "prometheus-parse",
+ "reqwest",
+ "rustls",
+ "rustls-platform-verifier",
+ "ryu",
+ "serde",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "n0-metrics-derive"
+version = "1.0.0-rc.0"
+dependencies = [
+ "heck",
  "proc-macro2",
  "quote",
  "syn",

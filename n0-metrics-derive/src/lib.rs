@@ -75,20 +75,20 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
     let metric_arms = metrics.iter().enumerate().map(|(i, f)| {
         let (ident, ident_str, help) = (f.ident, &f.ident_str, &f.help);
         quote! {
-            #i => Some(::iroh_metrics::MetricItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::Metric)),
+            #i => Some(::n0_metrics::MetricItem::new(#ident_str, #help, &self.#ident as &dyn ::n0_metrics::Metric)),
         }
     });
     let family_arms = families.iter().enumerate().map(|(i, f)| {
         let (ident, ident_str, help) = (f.ident, &f.ident_str, &f.help);
         quote! {
-            #i => Some(::iroh_metrics::FamilyItem::new(#ident_str, #help, &self.#ident as &dyn ::iroh_metrics::FamilyEncoder)),
+            #i => Some(::n0_metrics::FamilyItem::new(#ident_str, #help, &self.#ident as &dyn ::n0_metrics::FamilyEncoder)),
         }
     });
 
     let family_impl = (family_count > 0).then(|| {
         quote! {
             fn family_field_count(&self) -> usize { #family_count }
-            fn family_field_ref(&self, n: usize) -> Option<::iroh_metrics::FamilyItem<'_>> {
+            fn family_field_ref(&self, n: usize) -> Option<::n0_metrics::FamilyItem<'_>> {
                 match n {
                     #(#family_arms)*
                     _ => None,
@@ -98,9 +98,9 @@ fn expand_iterable(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Erro
     });
 
     Ok(quote! {
-        impl ::iroh_metrics::iterable::Iterable for #name {
+        impl ::n0_metrics::iterable::Iterable for #name {
             fn metric_field_count(&self) -> usize { #metric_count }
-            fn metric_field_ref(&self, n: usize) -> Option<::iroh_metrics::MetricItem<'_>> {
+            fn metric_field_ref(&self, n: usize) -> Option<::n0_metrics::MetricItem<'_>> {
                 match n {
                     #(#metric_arms)*
                     _ => None,
@@ -195,7 +195,7 @@ fn expand_metrics(input: &DeriveInput) -> Result<proc_macro2::TokenStream, Error
     };
 
     Ok(quote! {
-        impl ::iroh_metrics::MetricsGroup for #name {
+        impl ::n0_metrics::MetricsGroup for #name {
             fn name(&self) -> &'static str {
                 #name_str
             }
@@ -217,24 +217,24 @@ fn expand_metrics_group_set(input: &DeriveInput) -> Result<proc_macro2::TokenStr
     for field in fields {
         let name = field.ident.as_ref().unwrap();
         cloned.extend(quote! {
-            self.#name.clone() as ::std::sync::Arc<dyn ::iroh_metrics::MetricsGroup>,
+            self.#name.clone() as ::std::sync::Arc<dyn ::n0_metrics::MetricsGroup>,
         });
         refs.extend(quote! {
-            &*self.#name as &dyn ::iroh_metrics::MetricsGroup,
+            &*self.#name as &dyn ::n0_metrics::MetricsGroup,
         });
     }
 
     Ok(quote! {
-        impl ::iroh_metrics::MetricsGroupSet for #name {
+        impl ::n0_metrics::MetricsGroupSet for #name {
             fn name(&self) -> &'static str {
                 #name_str
             }
 
-            fn groups_cloned(&self) -> impl ::std::iter::Iterator<Item = ::std::sync::Arc<dyn ::iroh_metrics::MetricsGroup>> {
+            fn groups_cloned(&self) -> impl ::std::iter::Iterator<Item = ::std::sync::Arc<dyn ::n0_metrics::MetricsGroup>> {
                 [#cloned].into_iter()
             }
 
-            fn groups(&self) -> impl ::std::iter::Iterator<Item = &dyn ::iroh_metrics::MetricsGroup> {
+            fn groups(&self) -> impl ::std::iter::Iterator<Item = &dyn ::n0_metrics::MetricsGroup> {
                 [#refs].into_iter()
             }
         }
@@ -271,13 +271,13 @@ fn expand_encode_label_set(input: &DeriveInput) -> Result<proc_macro2::TokenStre
         // Borrow the field through `EncodeLabelValue` so string fields
         // don't allocate on every scrape.
         label_pairs.push(quote! {
-            (#label_name, ::iroh_metrics::EncodeLabelValue::encode_label_value(&self.#ident))
+            (#label_name, ::n0_metrics::EncodeLabelValue::encode_label_value(&self.#ident))
         });
     }
 
     Ok(quote! {
-        impl ::iroh_metrics::EncodeLabelSet for #name {
-            fn encode_label_pairs(&self) -> ::std::vec::Vec<::iroh_metrics::LabelPair<'_>> {
+        impl ::n0_metrics::EncodeLabelSet for #name {
+            fn encode_label_pairs(&self) -> ::std::vec::Vec<::n0_metrics::LabelPair<'_>> {
                 ::std::vec![#(#label_pairs),*]
             }
         }
@@ -307,13 +307,13 @@ fn expand_encode_label_value(input: &DeriveInput) -> Result<proc_macro2::TokenSt
         let ident = &variant.ident;
         let label = attr.name.unwrap_or_else(|| rule.apply(&ident.to_string()));
         arms.push(quote! {
-            Self::#ident => ::iroh_metrics::LabelValue::Str(::std::borrow::Cow::Borrowed(#label)),
+            Self::#ident => ::n0_metrics::LabelValue::Str(::std::borrow::Cow::Borrowed(#label)),
         });
     }
 
     Ok(quote! {
-        impl ::iroh_metrics::EncodeLabelValue for #name {
-            fn encode_label_value(&self) -> ::iroh_metrics::LabelValue<'_> {
+        impl ::n0_metrics::EncodeLabelValue for #name {
+            fn encode_label_value(&self) -> ::n0_metrics::LabelValue<'_> {
                 match self {
                     #(#arms)*
                 }

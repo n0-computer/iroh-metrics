@@ -35,7 +35,7 @@ on:
       #   default: "false"
 
 env:
-  BIN_NAME: iroh-metrics
+  BIN_NAME: n0-metrics
   IROH_FORCE_STAGING_RELAYS: "1"
 
 jobs:

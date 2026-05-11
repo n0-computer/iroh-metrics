@@ -1,11 +1,11 @@
 [package]
-name = "iroh-metrics-derive"
+name = "n0-metrics-derive"
 version = "1.0.0-rc.0"
 edition = "2024"
-description = "derive macros for iroh-metrics"
+description = "derive macros for n0-metrics"
 license = "MIT OR Apache-2.0"
 authors = ["Frando <franz@n0.computer>", "n0 team"]
-repository = "https://github.com/n0-computer/iroh-metrics"
+repository = "https://github.com/n0-computer/n0-metrics"
 
 # Sadly this also needs to be updated in .github/workflows/ci.yml
 rust-version = "1.85"

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use iroh_metrics::{
+use n0_metrics::{
     Counter, EncodeLabelSet, Family, Histogram, MetricsGroup, MetricsSource, Registry,
 };
 

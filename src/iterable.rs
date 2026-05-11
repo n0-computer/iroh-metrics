@@ -7,9 +7,9 @@ use std::fmt;
 /// You can use this derive instead of [`MetricsGroup`] if you want to implement `Default`
 /// and `MetricsGroup` manually, but still use a derived `Iterable` impl.
 ///
-/// [`Iterable`]: ::iroh_metrics::iterable::Iterable
-/// [`MetricsGroup`]: ::iroh_metrics::MetricsGroup
-pub use iroh_metrics_derive::Iterable;
+/// [`Iterable`]: ::n0_metrics::iterable::Iterable
+/// [`MetricsGroup`]: ::n0_metrics::MetricsGroup
+pub use n0_metrics_derive::Iterable;
 
 use crate::{FamilyItem, MetricItem};
 
