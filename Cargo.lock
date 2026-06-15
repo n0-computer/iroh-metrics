@@ -518,7 +518,7 @@ checksum = "d98f6fed1fde3f8c21bc40a1abb88dd75e67924f9cffc3ef95607bad8017f8e2"
 
 [[package]]
 name = "iroh-metrics"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "erased_set",
  "http-body-util",
@@ -542,7 +542,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics-derive"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "heck",
  "proc-macro2",
