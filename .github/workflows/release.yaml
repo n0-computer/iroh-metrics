@@ -73,15 +73,18 @@ jobs:
       with:
         persist-credentials: false
         fetch-depth: 1
+    # actions/create-release is archived. gh ships on the runner and keeps the
+    # upload_url output the (currently commented-out) build-release job reads.
     - name: Create GitHub release
       id: release
       if: github.event.inputs.create_release == 'true' || github.event_name == 'push'
-      uses: actions/create-release@0cb9c9b65d5d1901c1f53e5e66eaf4afd303e70e # v1.1.4
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.RELEASE_VERSION }}
-        release_name: ${{ env.RELEASE_VERSION }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        gh release create "$RELEASE_VERSION" --title "$RELEASE_VERSION"
+        upload_url="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION" --jq .upload_url)"
+        echo "upload_url=$upload_url" >> "$GITHUB_OUTPUT"
   # build-release:
   #   name: build-release
   #   needs: create-release
