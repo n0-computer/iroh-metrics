@@ -28,7 +28,7 @@ jobs:
   tests:
     name: CI Test Suite
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
-    uses: './.github/workflows/tests.yaml'
+    uses: '$/.github/workflows/tests.yaml'
 
   cross_build:
     name: Cross Build Only
@@ -114,10 +114,11 @@ jobs:
         java-version: '17'
 
     - name: Setup Android SDK
-      uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+      uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
+    # Pinned to a release tag (rather than @main) for supply-chain hygiene.
     - name: Setup Android NDK
-      uses: arqu/setup-ndk@4f8a02c22e2c17ff9ebba9026e599da847aa8374 # main
+      uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
       id: setup-ndk
       with:
         ndk-version: r23

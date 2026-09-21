@@ -339,6 +339,6 @@ jobs:
       - name: cargo check
         run: |
           rm -Force Cargo.lock
-          cargo +nightly check -Z minimal-versions -Z min-publish-age \
-            --config 'registry.global-min-publish-age="3 days"' \
+          cargo +nightly check -Z minimal-versions -Z min-publish-age `
+            --config 'registry.global-min-publish-age="3 days"' `
             --workspace --all-features --lib --bins
