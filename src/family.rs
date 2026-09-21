@@ -12,7 +12,7 @@ use std::{
 #[cfg(feature = "metrics")]
 use std::{
     collections::HashMap,
-    panic::RefUnwindSafe,
+    panic::AssertUnwindSafe,
     sync::{OnceLock, RwLock},
 };
 
@@ -150,8 +150,20 @@ impl<'a> FamilyItem<'a> {
     }
 }
 
+/// The closure a [`Family`] calls to create the metric for a new label set.
+///
+/// Trait objects do not inherit auto traits from the concrete closure, so a plain
+/// `Arc<dyn Fn>` field would make `Family`, and every metrics group holding one,
+/// neither `UnwindSafe` nor `RefUnwindSafe`. Requiring `RefUnwindSafe` from
+/// callers of [`Family::with_constructor`] would fix that but break the public
+/// API, so we assert it here instead.
+///
+/// The assertion holds because the closure is only ever called through a shared
+/// reference, and the `Send + Sync` bound already rules out `Cell` and `RefCell`
+/// captures. Any shared state the closure can still reach sits behind a lock or
+/// an atomic, and those types already implement `RefUnwindSafe`.
 #[cfg(feature = "metrics")]
-type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync + RefUnwindSafe>;
+type Constructor<M> = AssertUnwindSafe<Arc<dyn Fn() -> M + Send + Sync>>;
 
 /// One entry in a [`Family`]: the metric plus the rendered label strings
 /// computed once at insert time.
@@ -204,7 +216,7 @@ where
     pub fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
-            constructor: Arc::new(M::default),
+            constructor: AssertUnwindSafe(Arc::new(M::default)),
             schema_version: Arc::new(OnceLock::new()),
         }
     }
@@ -228,12 +240,10 @@ where
     M: Metric,
 {
     /// Creates a new family with a custom constructor (useful for Histogram buckets).
-    pub fn with_constructor<F: Fn() -> M + Send + Sync + RefUnwindSafe + 'static>(
-        constructor: F,
-    ) -> Self {
+    pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
-            constructor: Arc::new(constructor),
+            constructor: AssertUnwindSafe(Arc::new(constructor)),
             schema_version: Arc::new(OnceLock::new()),
         }
     }
@@ -400,7 +410,7 @@ where
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
-            constructor: Arc::clone(&self.constructor),
+            constructor: AssertUnwindSafe(Arc::clone(&self.constructor.0)),
             schema_version: Arc::clone(&self.schema_version),
         }
     }

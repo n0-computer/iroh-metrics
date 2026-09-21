@@ -114,7 +114,7 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
-    use std::panic::UnwindSafe;
+    use std::panic::{RefUnwindSafe, UnwindSafe};
     #[cfg(feature = "postcard")]
     use std::sync::RwLock;
 
@@ -793,14 +793,20 @@ combined_bar_count_total{x="y"} 10
             bytes_by_proto: Family<Proto, Counter>,
         }
 
-        fn needs_unwind_safe<T: UnwindSafe>(x: T) {
+        fn assert_unwind_safe<T: UnwindSafe + RefUnwindSafe>(x: T) {
             let _ = x;
         }
 
         let without_family = MetricsWithoutFamily::default();
         let with_family = MetricsWithFamily::default();
-        needs_unwind_safe(without_family);
-        needs_unwind_safe(with_family);
+        assert_unwind_safe(without_family);
+        assert_unwind_safe(with_family);
+
+        // `with_constructor` must keep accepting closures that are not
+        // `RefUnwindSafe`, and a family built from one must still be unwind safe.
+        let inner: Arc<dyn Fn() -> Counter + Send + Sync> = Arc::new(Counter::default);
+        let family: Family<Proto, Counter> = Family::with_constructor(move || inner());
+        assert_unwind_safe(family);
     }
 
     // Shared fixtures for the family-related tests below.
