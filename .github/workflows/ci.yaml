@@ -74,7 +74,7 @@ jobs:
       # cross tests are currently broken vor armv7 and aarch64
       # see https://github.com/cross-rs/cross/issues/1311.  So on
       # those platforms we only build but do not run tests.
-      run: cross build --all --target $RUST_TARGET
+      run: cross build --locked --all --target $RUST_TARGET
       env:
         RUST_TARGET: ${{ matrix.target }}
         RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
@@ -128,8 +128,8 @@ jobs:
         RUST_TARGET: ${{ matrix.target }}
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
-        cargo install --version 3.5.4 cargo-ndk
-        cargo ndk --target $RUST_TARGET build
+        cargo install --locked --version 3.5.4 cargo-ndk
+        cargo ndk --target $RUST_TARGET build --locked
 
   cross_test:
     name: Cross Test
@@ -164,7 +164,7 @@ jobs:
         tool: cross
 
     - name: test
-      run: cross test --all --target $RUST_TARGET -- --test-threads=12
+      run: cross test --locked --all --target $RUST_TARGET -- --test-threads=12
       env:
         RUST_TARGET: ${{ matrix.target }}
         RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG' }}
@@ -220,6 +220,9 @@ jobs:
       with:
         tool: cargo-make
     - run: cargo make format-check
+    - name: Lockfile must not have moved
+      # cargo make takes no --locked; assert the lockfile instead.
+      run: git diff --exit-code Cargo.lock
 
   check_docs:
     timeout-minutes: 30
@@ -239,7 +242,7 @@ jobs:
       uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
     - name: Docs
-      run: cargo doc --workspace --all-features --no-deps --document-private-items
+      run: cargo doc --locked --workspace --all-features --no-deps --document-private-items
       env:
         RUSTDOCFLAGS: --cfg docsrs
 
@@ -263,13 +266,13 @@ jobs:
     # TODO: We have a bunch of platform-dependent code so should
     #    probably run this job on the full platform matrix
     - name: clippy check (all features)
-      run: cargo clippy --workspace --all-features --all-targets --bins --tests --benches
+      run: cargo clippy --locked --workspace --all-features --all-targets --bins --tests --benches
 
     - name: clippy check (no features)
-      run: cargo clippy --workspace --no-default-features --lib --bins --tests
+      run: cargo clippy --locked --workspace --no-default-features --lib --bins --tests
 
     - name: clippy check (default features)
-      run: cargo clippy --workspace --all-targets
+      run: cargo clippy --locked --workspace --all-targets
 
   msrv:
     if: "github.event_name != 'pull_request' || ! contains(github.event.pull_request.labels.*.name, 'flaky-test')"
@@ -291,7 +294,7 @@ jobs:
 
     - name: Check MSRV all features
       run: |
-        cargo +$MSRV check --workspace --all-targets
+        cargo +$MSRV check --locked --workspace --all-targets
 
   cargo_deny:
     timeout-minutes: 30

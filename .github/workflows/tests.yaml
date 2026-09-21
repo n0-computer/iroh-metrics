@@ -103,19 +103,19 @@ jobs:
           else
             targets="--lib --bins"
           fi
-          echo cargo check -p $i $FEATURES $targets
-          cargo check -p $i $FEATURES $targets
+          echo cargo check --locked -p $i $FEATURES $targets
+          cargo check --locked -p $i $FEATURES $targets
         done
       env:
         RUST_LOG: ${{ runner.debug && 'TRACE' || 'DEBUG'}}
 
     - name: build tests
       run: |
-        cargo nextest run --workspace $FEATURES --lib --bins --tests --no-run
+        cargo nextest run --locked --workspace $FEATURES --lib --bins --tests --no-run
 
     - name: list ignored tests
       run: |
-        cargo nextest list --workspace $FEATURES --lib --bins --tests --run-ignored ignored-only
+        cargo nextest list --locked --workspace $FEATURES --lib --bins --tests --run-ignored ignored-only
       env:
         NEXTEST_NO_TESTS: "pass"
 
@@ -129,7 +129,7 @@ jobs:
         OUT_NAME: ${{ matrix.name }}_${{ matrix.features }}_${{ matrix.rust }}
       run: |
         mkdir -p output
-        cargo nextest run --workspace $FEATURES --lib --bins --tests --profile ci --run-ignored "$RUN_IGNORED" --no-fail-fast --message-format "$MSG_FORMAT" > "output/$OUT_NAME.json"
+        cargo nextest run --locked --workspace $FEATURES --lib --bins --tests --profile ci --run-ignored "$RUN_IGNORED" --no-fail-fast --message-format "$MSG_FORMAT" > "output/$OUT_NAME.json"
 
     - name: upload results
       if: ${{ failure() && inputs.flaky }}
@@ -148,7 +148,7 @@ jobs:
         else
             export RUST_LOG=DEBUG
         fi
-        cargo test --workspace --all-features --doc
+        cargo test --locked --workspace --all-features --doc
 
   build_and_test_windows:
     timeout-minutes: 30
@@ -223,7 +223,7 @@ jobs:
         RUST_TARGET: ${{ matrix.target }}
       run: |
         $feat = if ($env:FEATURES) { $env:FEATURES -split '\s+' } else { @() }
-        cargo nextest run --workspace @feat --lib --bins --tests --target $env:RUST_TARGET --no-run
+        cargo nextest run --locked --workspace @feat --lib --bins --tests --target $env:RUST_TARGET --no-run
 
     - name: list ignored tests
       env:
@@ -231,7 +231,7 @@ jobs:
         RUST_TARGET: ${{ matrix.target }}
       run: |
         $feat = if ($env:FEATURES) { $env:FEATURES -split '\s+' } else { @() }
-        cargo nextest list --workspace @feat --lib --bins --tests --target $env:RUST_TARGET --run-ignored ignored-only
+        cargo nextest list --locked --workspace @feat --lib --bins --tests --target $env:RUST_TARGET --run-ignored ignored-only
 
     - name: tests
       env:
@@ -245,7 +245,7 @@ jobs:
       run: |
         mkdir -p output
         $feat = if ($env:FEATURES) { $env:FEATURES -split '\s+' } else { @() }
-        cargo nextest run --workspace @feat --lib --bins --tests --profile ci --target $env:RUST_TARGET --run-ignored $env:RUN_IGNORED --no-fail-fast --message-format $env:MSG_FORMAT > "output/$($env:OUT_NAME).json"
+        cargo nextest run --locked --workspace @feat --lib --bins --tests --profile ci --target $env:RUST_TARGET --run-ignored $env:RUN_IGNORED --no-fail-fast --message-format $env:MSG_FORMAT > "output/$($env:OUT_NAME).json"
 
     - name: upload results
       if: ${{ failure() && inputs.flaky }}
@@ -283,7 +283,9 @@ jobs:
       - name: cargo check
         run: |
           rm -f Cargo.lock
-          cargo +nightly check -Z minimal-versions --workspace --all-features --lib --bins
+          cargo +nightly check -Z minimal-versions -Z min-publish-age \
+            --config 'registry.global-min-publish-age="3 days"' \
+            --workspace --all-features --lib --bins
 
   minimal-crates-windows:
     timeout-minutes: 30
@@ -329,4 +331,6 @@ jobs:
       - name: cargo check
         run: |
           rm -Force Cargo.lock
-          cargo +nightly check -Z minimal-versions --workspace --all-features --lib --bins
+          cargo +nightly check -Z minimal-versions -Z min-publish-age \
+            --config 'registry.global-min-publish-age="3 days"' \
+            --workspace --all-features --lib --bins
