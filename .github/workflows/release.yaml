@@ -38,8 +38,14 @@ env:
   BIN_NAME: iroh-metrics
   IROH_FORCE_STAGING_RELAYS: "1"
 
+# Default to read-only; jobs that need more grant it explicitly.
+permissions:
+  contents: read
+
 jobs:
   create-release:
+    permissions:
+      contents: write        # drafts the GitHub release
     name: create-release
     runs-on: ubuntu-latest
     outputs:
