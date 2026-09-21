@@ -4,14 +4,16 @@
 //! should be low cardinality: each unique combination becomes a separate
 //! timeseries on the backend, and the internal map grows without bound.
 
-#[cfg(feature = "metrics")]
-use std::collections::HashMap;
-#[cfg(feature = "metrics")]
-use std::sync::{OnceLock, RwLock};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
     sync::Arc,
+};
+#[cfg(feature = "metrics")]
+use std::{
+    collections::HashMap,
+    panic::RefUnwindSafe,
+    sync::{OnceLock, RwLock},
 };
 
 use portable_atomic::AtomicU64;
@@ -149,7 +151,7 @@ impl<'a> FamilyItem<'a> {
 }
 
 #[cfg(feature = "metrics")]
-type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
+type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync + RefUnwindSafe>;
 
 /// One entry in a [`Family`]: the metric plus the rendered label strings
 /// computed once at insert time.
@@ -226,7 +228,9 @@ where
     M: Metric,
 {
     /// Creates a new family with a custom constructor (useful for Histogram buckets).
-    pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
+    pub fn with_constructor<F: Fn() -> M + Send + Sync + RefUnwindSafe + 'static>(
+        constructor: F,
+    ) -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
             constructor: Arc::new(constructor),

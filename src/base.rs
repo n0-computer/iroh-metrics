@@ -114,16 +114,18 @@ mod tests {
 /// Tests with the `metrics` feature,
 #[cfg(all(test, feature = "metrics"))]
 mod tests {
+    use std::panic::UnwindSafe;
     #[cfg(feature = "postcard")]
     use std::sync::RwLock;
 
+    use iroh_metrics_derive::MetricsGroup;
     use serde::{Deserialize, Serialize};
 
     use super::*;
     #[cfg(feature = "postcard")]
     use crate::encoding::{Decoder, Encoder};
     use crate::{
-        Counter, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
+        Counter, Family, Gauge, Histogram, MetricType, MetricsGroupSet, MetricsSource, Registry,
         iterable::Iterable,
     };
 
@@ -767,6 +769,38 @@ combined_bar_count_total{x="y"} 10
         assert!(output.contains(r#"transport="ipv4""#));
         assert!(output.contains(r#"transport="relay""#));
         assert!(output.contains("magicsock_latency"));
+    }
+
+    #[test]
+    fn test_unwind_safe() {
+        #[derive(
+            Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug, iroh_metrics::EncodeLabelSet,
+        )]
+        struct Proto {
+            proto: String,
+        }
+
+        #[derive(Debug, Default, MetricsGroup)]
+        #[metrics(name = "no-family")]
+        struct MetricsWithoutFamily {
+            bytes: Counter,
+        }
+
+        #[derive(Debug, Default, MetricsGroup)]
+        #[metrics(name = "family")]
+        struct MetricsWithFamily {
+            bytes: Counter,
+            bytes_by_proto: Family<Proto, Counter>,
+        }
+
+        fn needs_unwind_safe<T: UnwindSafe>(x: T) {
+            let _ = x;
+        }
+
+        let without_family = MetricsWithoutFamily::default();
+        let with_family = MetricsWithFamily::default();
+        needs_unwind_safe(without_family);
+        needs_unwind_safe(with_family);
     }
 
     // Shared fixtures for the family-related tests below.
