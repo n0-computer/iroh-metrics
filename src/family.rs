@@ -4,14 +4,16 @@
 //! should be low cardinality: each unique combination becomes a separate
 //! timeseries on the backend, and the internal map grows without bound.
 
-#[cfg(feature = "metrics")]
-use std::collections::HashMap;
-#[cfg(feature = "metrics")]
-use std::sync::{OnceLock, RwLock};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
     sync::Arc,
+};
+#[cfg(feature = "metrics")]
+use std::{
+    collections::HashMap,
+    panic::AssertUnwindSafe,
+    sync::{OnceLock, RwLock},
 };
 
 use portable_atomic::AtomicU64;
@@ -148,8 +150,25 @@ impl<'a> FamilyItem<'a> {
     }
 }
 
+/// The closure a [`Family`] calls to create the metric for a new label set.
+///
+/// We wrap the Arc'd closure in [`AssertUnwindSafe`] here. A plain `Arc<dyn Fn>`
+/// is not `RefUnwindSafe`, which would make `Family` and every metrics group
+/// containing it become unwind-unsafe. The proper fix would be to add the bound to
+/// [`Family::with_constructor`], but that would break the public API.
+///
+/// Reasoning why the [`AssertUnwindSafe`] is acceptable:
+///
+/// - `Family` never runs the closure after a panic inside it. The closure is only
+///   invoked under the `inner` write lock, so such a panic poisons the lock and
+///   every later access to the map panics on the poison check instead.
+/// - A panic elsewhere that corrupts the closure's captured state is the closure
+///   author's concern, as it would be for any other shared `Sync` value they hold.
+/// - `RefUnwindSafe` is a safe marker trait with no soundness contract. Per the
+///   std docs it is advisory only: it warns `catch_unwind` callers that they may
+///   observe broken logical invariants, but a panic cannot cause memory unsafety.
 #[cfg(feature = "metrics")]
-type Constructor<M> = Arc<dyn Fn() -> M + Send + Sync>;
+type Constructor<M> = AssertUnwindSafe<Arc<dyn Fn() -> M + Send + Sync>>;
 
 /// One entry in a [`Family`]: the metric plus the rendered label strings
 /// computed once at insert time.
@@ -202,7 +221,7 @@ where
     pub fn new() -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
-            constructor: Arc::new(M::default),
+            constructor: AssertUnwindSafe(Arc::new(M::default)),
             schema_version: Arc::new(OnceLock::new()),
         }
     }
@@ -229,7 +248,7 @@ where
     pub fn with_constructor<F: Fn() -> M + Send + Sync + 'static>(constructor: F) -> Self {
         Self {
             inner: Arc::new(RwLock::new(HashMap::new())),
-            constructor: Arc::new(constructor),
+            constructor: AssertUnwindSafe(Arc::new(constructor)),
             schema_version: Arc::new(OnceLock::new()),
         }
     }
@@ -396,7 +415,7 @@ where
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
-            constructor: Arc::clone(&self.constructor),
+            constructor: AssertUnwindSafe(Arc::clone(&self.constructor.0)),
             schema_version: Arc::clone(&self.schema_version),
         }
     }
