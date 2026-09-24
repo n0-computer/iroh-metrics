@@ -3,7 +3,7 @@ members = ["iroh-metrics-derive"]
 
 [package]
 name = "iroh-metrics"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 readme = "README.md"
 description = "metrics for iroh"

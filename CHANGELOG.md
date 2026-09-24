@@ -2,11 +2,25 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [1.0.1](https://github.com/n0-computer/iroh-metrics/compare/v1.0.0..1.0.1) - 2026-06-15
+## [1.0.2](https://github.com/n0-computer/iroh-metrics/compare/v1.0.1..1.0.2) - 2026-09-24
+
+### 🐛 Bug Fixes
+
+- Make `Family` be `UnwindSafe` ([#137](https://github.com/n0-computer/iroh-metrics/issues/137)) - ([1b6254b](https://github.com/n0-computer/iroh-metrics/commit/1b6254b7c18fd6d31a87b2068420570cfb70bc39))
+
+### ⚙️ Miscellaneous Tasks
+
+- *(secruity)* Ensure locked cargo files and dependabot cooldown ([#138](https://github.com/n0-computer/iroh-metrics/issues/138)) - ([c299e39](https://github.com/n0-computer/iroh-metrics/commit/c299e396966e741207917efc5580b78d45d919a7))
+
+## [1.0.1](https://github.com/n0-computer/iroh-metrics/compare/v1.0.0..v1.0.1) - 2026-06-15
 
 ### ⛰️  Features
 
 - [**breaking**] Update to n0-error@1.0 - ([438f8e4](https://github.com/n0-computer/iroh-metrics/commit/438f8e44a35ff2358150f548df5ff1a183a16c09))
+
+### ⚙️ Miscellaneous Tasks
+
+- Release - ([a9afb7c](https://github.com/n0-computer/iroh-metrics/commit/a9afb7cd49bb3804fffefec61647993851f9b8c8))
 
 ## [1.0.0](https://github.com/n0-computer/iroh-metrics/compare/v1.0.0-rc.0..v1.0.0) - 2026-06-15
 
