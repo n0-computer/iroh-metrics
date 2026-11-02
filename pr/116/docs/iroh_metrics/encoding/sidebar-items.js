@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["encode_openmetrics_eof"],"struct":["Decoder","DecoderIter","Encoder","EncoderOpts","HistogramData","Item","ItemSchema","Schema","Update","Values"]};
