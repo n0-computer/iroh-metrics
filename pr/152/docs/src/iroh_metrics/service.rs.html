@@ -597,13 +597,31 @@
 <a href="#596" id="596">596</a>
 <a href="#597" id="597">597</a>
 <a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a></pre></div><pre class="rust"><code><span class="doccomment">//! Background services that expose or forward metrics from this crate.
 //!
 //! Each service runs in a single background task that is aborted when the
 //! returned handle is dropped.
 
 </span><span class="kw">use </span>std::{
+    io,
     net::SocketAddr,
+    pin::pin,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -614,6 +632,8 @@
 <span class="kw">use </span>tracing::{debug, error, info, warn};
 
 <span class="kw">use crate</span>::{Error, MetricsSource, parse_prometheus_metrics};
+
+<span class="kw">const </span>ACCEPT_ERROR_BACKOFF: Duration = Duration::from_secs(<span class="number">1</span>);
 
 <span class="kw">type </span>BytesBody = http_body_util::Full&lt;hyper::body::Bytes&gt;;
 
@@ -631,10 +651,7 @@
 
 <span class="kw">impl </span>MetricsServer {
     <span class="doccomment">/// Binds to `addr` and spawns the server in a background task.
-    </span><span class="kw">pub async fn </span>spawn(
-        addr: SocketAddr,
-        registry: <span class="kw">impl </span>MetricsSource + Clone,
-    ) -&gt; std::io::Result&lt;<span class="self">Self</span>&gt; {
+    </span><span class="kw">pub async fn </span>spawn(addr: SocketAddr, registry: <span class="kw">impl </span>MetricsSource + Clone) -&gt; io::Result&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>listener = TcpListener::bind(addr).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">let </span>addr = listener.local_addr()<span class="question-mark">?</span>;
         <span class="macro">info!</span>(<span class="string">"Starting metrics server on {addr}"</span>);
@@ -669,18 +686,34 @@
     cancel: CancellationToken,
 ) {
     <span class="kw">let </span><span class="kw-2">mut </span>tasks: JoinSet&lt;()&gt; = JoinSet::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>retry_accept = <span class="macro">pin!</span>(tokio::time::sleep(Duration::ZERO));
+    <span class="kw">let </span><span class="kw-2">mut </span>is_accept_paused = <span class="bool-val">false</span>;
     <span class="kw">loop </span>{
         <span class="macro">tokio::select!</span> {
             biased;
             () = cancel.cancelled() =&gt; <span class="kw">break</span>,
-            res = listener.accept() =&gt; {
+            () = <span class="kw-2">&amp;mut </span>retry_accept, <span class="kw">if </span>is_accept_paused =&gt; is_accept_paused = <span class="bool-val">false</span>,
+            res = listener.accept(), <span class="kw">if </span>!is_accept_paused =&gt; {
                 <span class="kw">match </span>res {
                     <span class="prelude-val">Ok</span>((stream, _addr)) =&gt; {
                         tasks.spawn(serve_connection(stream, registry.clone(), cancel.clone()));
                     }
+                    <span class="prelude-val">Err</span>(err) <span class="kw">if </span><span class="macro">matches!</span>(
+                        err.kind(),
+                        io::ErrorKind::ConnectionAborted
+                            | io::ErrorKind::ConnectionReset
+                            | io::ErrorKind::ConnectionRefused
+                    ) =&gt; {
+                        <span class="macro">debug!</span>(<span class="string">"metrics connection failed before accept: {err:#}"</span>);
+                    }
                     <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">error!</span>(<span class="string">"metrics server accept failed: {err:#}"</span>);
-                        <span class="kw">break</span>;
+                        <span class="comment">// Errors such as EMFILE clear once descriptors are freed, so the
+                        // listener must survive them.
+                        </span><span class="macro">error!</span>(<span class="string">"metrics server accept failed, retrying in {ACCEPT_ERROR_BACKOFF:?}: {err:#}"</span>);
+                        retry_accept
+                            .as_mut()
+                            .reset(tokio::time::Instant::now() + ACCEPT_ERROR_BACKOFF);
+                        is_accept_paused = <span class="bool-val">true</span>;
                     }
                 }
             }
@@ -710,7 +743,7 @@
     <span class="kw">let </span>io = hyper_util::rt::TokioIo::new(stream);
     <span class="kw">let </span>conn = hyper::server::conn::http1::Builder::new()
         .serve_connection(io, service_fn(<span class="kw">move </span>|req| handler(req, registry.clone())));
-    <span class="kw">let </span><span class="kw-2">mut </span>conn = <span class="macro">std::pin::pin!</span>(conn);
+    <span class="kw">let </span><span class="kw-2">mut </span>conn = <span class="macro">pin!</span>(conn);
     <span class="macro">tokio::select!</span> {
         res = conn.as_mut() =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = res {
@@ -944,7 +977,7 @@
     start: <span class="kw-2">&amp;</span>Instant,
     encoded: <span class="kw-2">&amp;</span>str,
     write_header: bool,
-) -&gt; std::io::Result&lt;()&gt; {
+) -&gt; io::Result&lt;()&gt; {
     <span class="kw">let </span>m = parse_prometheus_metrics(encoded);
     <span class="kw">let </span>time_since_start = start.elapsed().as_millis() <span class="kw">as </span>f64;
 
@@ -1065,7 +1098,6 @@
 
     <span class="attr">#[cfg(unix)]
     #[tokio::test]
-    #[ignore = <span class="string">"ANT-2026-5LM713MN"</span>]
     </span><span class="kw">async fn </span>metrics_server_serves_after_fd_exhaustion() {
         <span class="kw">use </span>std::os::fd::AsRawFd;
 
@@ -1102,7 +1134,7 @@
                 .<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>response = Vec::new();
             stream.read_to_end(<span class="kw-2">&amp;mut </span>response).<span class="kw">await</span><span class="question-mark">?</span>;
-            std::io::Result::Ok(String::from_utf8_lossy(<span class="kw-2">&amp;</span>response).into_owned())
+            io::Result::Ok(String::from_utf8_lossy(<span class="kw-2">&amp;</span>response).into_owned())
         })
         .<span class="kw">await
         </span>.expect(<span class="string">"timeout"</span>)
