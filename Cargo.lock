@@ -526,6 +526,7 @@ dependencies = [
  "hyper-util",
  "iroh-metrics-derive",
  "itoa",
+ "libc",
  "n0-error",
  "portable-atomic",
  "postcard",
