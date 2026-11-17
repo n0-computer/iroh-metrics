@@ -4,7 +4,9 @@
 //! returned handle is dropped.
 
 use std::{
+    io,
     net::SocketAddr,
+    pin::pin,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -15,6 +17,8 @@ use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 use tracing::{debug, error, info, warn};
 
 use crate::{Error, MetricsSource, parse_prometheus_metrics};
+
+const ACCEPT_ERROR_BACKOFF: Duration = Duration::from_secs(1);
 
 type BytesBody = http_body_util::Full<hyper::body::Bytes>;
 
@@ -32,10 +36,7 @@ pub struct MetricsServer {
 
 impl MetricsServer {
     /// Binds to `addr` and spawns the server in a background task.
-    pub async fn spawn(
-        addr: SocketAddr,
-        registry: impl MetricsSource + Clone,
-    ) -> std::io::Result<Self> {
+    pub async fn spawn(addr: SocketAddr, registry: impl MetricsSource + Clone) -> io::Result<Self> {
         let listener = TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
         info!("Starting metrics server on {addr}");
@@ -70,18 +71,34 @@ async fn server_loop(
     cancel: CancellationToken,
 ) {
     let mut tasks: JoinSet<()> = JoinSet::new();
+    let mut retry_accept = pin!(tokio::time::sleep(Duration::ZERO));
+    let mut is_accept_paused = false;
     loop {
         tokio::select! {
             biased;
             () = cancel.cancelled() => break,
-            res = listener.accept() => {
+            () = &mut retry_accept, if is_accept_paused => is_accept_paused = false,
+            res = listener.accept(), if !is_accept_paused => {
                 match res {
                     Ok((stream, _addr)) => {
                         tasks.spawn(serve_connection(stream, registry.clone(), cancel.clone()));
                     }
+                    Err(err) if matches!(
+                        err.kind(),
+                        io::ErrorKind::ConnectionAborted
+                            | io::ErrorKind::ConnectionReset
+                            | io::ErrorKind::ConnectionRefused
+                    ) => {
+                        debug!("metrics connection failed before accept: {err:#}");
+                    }
                     Err(err) => {
-                        error!("metrics server accept failed: {err:#}");
-                        break;
+                        // Errors such as EMFILE clear once descriptors are freed, so the
+                        // listener must survive them.
+                        error!("metrics server accept failed, retrying in {ACCEPT_ERROR_BACKOFF:?}: {err:#}");
+                        retry_accept
+                            .as_mut()
+                            .reset(tokio::time::Instant::now() + ACCEPT_ERROR_BACKOFF);
+                        is_accept_paused = true;
                     }
                 }
             }
@@ -111,7 +128,7 @@ async fn serve_connection(
     let io = hyper_util::rt::TokioIo::new(stream);
     let conn = hyper::server::conn::http1::Builder::new()
         .serve_connection(io, service_fn(move |req| handler(req, registry.clone())));
-    let mut conn = std::pin::pin!(conn);
+    let mut conn = pin!(conn);
     tokio::select! {
         res = conn.as_mut() => {
             if let Err(err) = res {
@@ -345,7 +362,7 @@ async fn dump_metrics(
     start: &Instant,
     encoded: &str,
     write_header: bool,
-) -> std::io::Result<()> {
+) -> io::Result<()> {
     let m = parse_prometheus_metrics(encoded);
     let time_since_start = start.elapsed().as_millis() as f64;
 
@@ -466,7 +483,6 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    #[ignore = "ANT-2026-5LM713MN"]
     async fn metrics_server_serves_after_fd_exhaustion() {
         use std::os::fd::AsRawFd;
 
@@ -503,7 +519,7 @@ mod tests {
                 .await?;
             let mut response = Vec::new();
             stream.read_to_end(&mut response).await?;
-            std::io::Result::Ok(String::from_utf8_lossy(&response).into_owned())
+            io::Result::Ok(String::from_utf8_lossy(&response).into_owned())
         })
         .await
         .expect("timeout")
