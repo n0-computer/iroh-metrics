@@ -464,6 +464,55 @@ mod tests {
         server.shutdown().await;
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    #[ignore = "ANT-2026-5LM713MN"]
+    async fn metrics_server_serves_after_fd_exhaustion() {
+        use std::os::fd::AsRawFd;
+
+        let server = MetricsServer::spawn("127.0.0.1:0".parse().unwrap(), registry())
+            .await
+            .unwrap();
+        let addr = server.local_addr();
+        let _client = std::net::TcpStream::connect(addr).unwrap();
+
+        let mut limit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        assert_eq!(
+            unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) },
+            0
+        );
+        let lowest_free_fd = std::fs::File::open("/dev/null").unwrap().as_raw_fd();
+        let exhausted = libc::rlimit {
+            rlim_cur: lowest_free_fd as libc::rlim_t,
+            ..limit
+        };
+        assert_eq!(
+            unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &exhausted) },
+            0
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) }, 0);
+
+        let response = tokio::time::timeout(Duration::from_secs(5), async {
+            let mut stream = tokio::net::TcpStream::connect(addr).await?;
+            stream
+                .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .await?;
+            let mut response = Vec::new();
+            stream.read_to_end(&mut response).await?;
+            std::io::Result::Ok(String::from_utf8_lossy(&response).into_owned())
+        })
+        .await
+        .expect("timeout")
+        .expect("metrics request");
+        assert!(response.starts_with("HTTP/1.1 200"), "response: {response}");
+
+        server.shutdown().await;
+    }
+
     #[tokio::test]
     async fn smoke_metrics_dumper() {
         let path = std::env::temp_dir().join(format!(
