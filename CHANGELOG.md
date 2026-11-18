@@ -2,7 +2,17 @@
 
 All notable changes to iroh will be documented in this file.
 
-## [1.0.2](https://github.com/n0-computer/iroh-metrics/compare/v1.0.1..1.0.2) - 2026-09-24
+## [1.0.3](https://github.com/n0-computer/iroh-metrics/compare/v1.0.2..1.0.3) - 2026-11-18
+
+### 🐛 Bug Fixes
+
+- Keep the metrics server accepting after accept errors ([#152](https://github.com/n0-computer/iroh-metrics/issues/152)) - ([4156c58](https://github.com/n0-computer/iroh-metrics/commit/4156c5841788c6c2b5b44085a5e6b9f384f66ac0))
+
+### ⚙️ Miscellaneous Tasks
+
+- Add AI policy ([#146](https://github.com/n0-computer/iroh-metrics/issues/146)) - ([b2504d7](https://github.com/n0-computer/iroh-metrics/commit/b2504d753ce8e022459e8b61e6c015a6d7ed9449))
+
+## [1.0.2](https://github.com/n0-computer/iroh-metrics/compare/v1.0.1..v1.0.2) - 2026-09-24
 
 ### 🐛 Bug Fixes
 
@@ -11,6 +21,7 @@ All notable changes to iroh will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - *(secruity)* Ensure locked cargo files and dependabot cooldown ([#138](https://github.com/n0-computer/iroh-metrics/issues/138)) - ([c299e39](https://github.com/n0-computer/iroh-metrics/commit/c299e396966e741207917efc5580b78d45d919a7))
+- Release - ([cc42b7d](https://github.com/n0-computer/iroh-metrics/commit/cc42b7d964d502880113e4338f7eb41e3d204ba1))
 
 ## [1.0.1](https://github.com/n0-computer/iroh-metrics/compare/v1.0.0..v1.0.1) - 2026-06-15
 
