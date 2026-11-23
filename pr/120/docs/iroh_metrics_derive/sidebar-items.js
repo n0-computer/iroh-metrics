@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"derive":["EncodeLabelSet","EncodeLabelValue","Iterable","MetricsGroup","MetricsGroupSet"]};

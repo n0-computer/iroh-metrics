@@ -1,1 +1,0 @@
-searchState.loadedDescShard("iroh_metrics_derive", 0, "Derives <code>EncodeLabelValue</code> for an enum with only unit …")
